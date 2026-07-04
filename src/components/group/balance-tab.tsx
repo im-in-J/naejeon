@@ -1,0 +1,224 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Shuffle, Check, Users, Zap } from "lucide-react";
+import type { PlayerStats } from "@/lib/stats";
+import type { Group } from "@/lib/types";
+import { getBalancerPlayers, balanceTeams, type BalancerPlayer } from "@/lib/stats";
+
+const TIER_COLORS: Record<string, string> = {
+  "실버": "text-gray-300",
+  "골드": "text-yellow-400",
+  "플래티넘": "text-teal-300",
+  "에메랄드": "text-emerald-400",
+  "다이아": "text-blue-400",
+  "마스터": "text-purple-400",
+};
+
+function getTierColor(tier?: string): string {
+  if (!tier) return "text-text-muted";
+  const base = tier.split(" ")[0];
+  return TIER_COLORS[base] || "text-text-muted";
+}
+
+export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[]; group: Group }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<{ team1: BalancerPlayer[]; team2: BalancerPlayer[]; diff: number } | null>(null);
+
+  // Build tier overrides from member data
+  const tierOverrides = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const m of group.members) {
+      if (m.tier) map[m.nickname] = m.tier;
+    }
+    return map;
+  }, [group]);
+
+  const allPlayers = useMemo(
+    () => getBalancerPlayers(playerStats, tierOverrides),
+    [playerStats, tierOverrides]
+  );
+
+  const togglePlayer = (nickname: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(nickname)) next.delete(nickname);
+      else if (next.size < 10) next.add(nickname);
+      return next;
+    });
+    setResult(null);
+  };
+
+  const handleBalance = () => {
+    const selectedPlayers = allPlayers.filter((p) => selected.has(p.nickname));
+    const balanced = balanceTeams(selectedPlayers);
+    setResult(balanced);
+  };
+
+  const selectAll = () => {
+    if (selected.size === Math.min(allPlayers.length, 10)) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(allPlayers.slice(0, 10).map((p) => p.nickname)));
+    }
+    setResult(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Instructions */}
+      <Card className="flex items-center gap-3 py-3 px-4">
+        <Users size={18} className="text-accent shrink-0" />
+        <p className="text-sm text-text-secondary">
+          참여할 플레이어를 선택하면 솔랭 티어 + 내전 전적을 종합해서 팀을 추천합니다.
+          티어는 <span className="text-accent">선수 정보</span> 탭에서 설정할 수 있습니다.
+        </p>
+      </Card>
+
+      {/* Player Selection */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-text-secondary">
+            참여자 선택 <span className="text-accent font-bold">{selected.size}</span>/10
+          </div>
+          <button
+            onClick={selectAll}
+            className="text-xs text-text-muted hover:text-accent cursor-pointer transition-fast"
+          >
+            {selected.size === Math.min(allPlayers.length, 10) ? "전체 해제" : "전체 선택"}
+          </button>
+        </div>
+
+        <div className="space-y-1.5">
+          {allPlayers.map((player) => {
+            const isSelected = selected.has(player.nickname);
+            const memberTier = tierOverrides[player.nickname];
+
+            return (
+              <div
+                key={player.nickname}
+                className={`flex items-center gap-3 p-3 rounded-xl border transition-fast cursor-pointer ${
+                  isSelected
+                    ? "bg-accent/5 border-accent/30"
+                    : "bg-bg-card border-border hover:border-border-hover"
+                }`}
+                onClick={() => togglePlayer(player.nickname)}
+              >
+                <div
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-fast ${
+                    isSelected ? "bg-accent border-accent" : "border-border"
+                  }`}
+                >
+                  {isSelected && <Check size={12} className="text-white" />}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-text-primary text-sm">{player.nickname}</span>
+                    {memberTier && (
+                      <span className={`text-xs font-bold ${getTierColor(memberTier)}`}>
+                        {memberTier}
+                      </span>
+                    )}
+                  </div>
+                  {player.gamesPlayed > 0 && (
+                    <span className="text-xs text-text-muted">
+                      {player.gamesPlayed}판 · {player.winRate.toFixed(0)}% · KDA {player.avgKda.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-xs text-text-muted font-mono w-10 text-right">
+                  {player.score.toFixed(1)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Balance Button */}
+      <div className="flex justify-center">
+        <Button
+          size="lg"
+          onClick={handleBalance}
+          disabled={selected.size < 2 || selected.size % 2 !== 0}
+        >
+          <Shuffle size={18} />
+          팀 밸런스 ({selected.size}명)
+        </Button>
+      </div>
+
+      {selected.size > 0 && selected.size % 2 !== 0 && (
+        <p className="text-xs text-center text-text-muted">짝수 인원만 밸런스를 맞출 수 있습니다</p>
+      )}
+
+      {/* Result */}
+      {result && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-center gap-2">
+            <Zap size={16} className="text-accent" />
+            <span className="text-sm font-medium text-text-primary">
+              팀 편성 완료 — 점수 차이: <span className="text-accent font-bold">{result.diff.toFixed(2)}</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <TeamCard team={result.team1} label="블루팀" color="blue" tiers={tierOverrides} />
+            <TeamCard team={result.team2} label="레드팀" color="red" tiers={tierOverrides} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamCard({
+  team,
+  label,
+  color,
+  tiers,
+}: {
+  team: BalancerPlayer[];
+  label: string;
+  color: "blue" | "red";
+  tiers: Record<string, string>;
+}) {
+  const total = team.reduce((s, p) => s + p.score, 0);
+  const borderColor = color === "blue" ? "border-blue-500/30" : "border-red-500/30";
+  const labelBg = color === "blue" ? "bg-blue-500/10 text-blue-400" : "bg-red-500/10 text-red-400";
+
+  return (
+    <Card className={`border-l-4 ${borderColor}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className={`text-sm font-bold px-2 py-0.5 rounded ${labelBg}`}>{label}</span>
+        <span className="text-xs text-text-muted font-mono">총 {total.toFixed(1)}점</span>
+      </div>
+      <div className="space-y-2">
+        {team.map((p) => (
+          <div key={p.nickname} className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-text-primary">{p.nickname}</span>
+              {tiers[p.nickname] && (
+                <span className={`text-xs font-bold ${getTierColor(tiers[p.nickname])}`}>
+                  {tiers[p.nickname]}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-text-muted">
+              {p.gamesPlayed > 0 && (
+                <>
+                  <span>{p.winRate.toFixed(0)}%</span>
+                  <span>KDA {p.avgKda.toFixed(2)}</span>
+                </>
+              )}
+              <span className="font-mono">{p.score.toFixed(1)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
