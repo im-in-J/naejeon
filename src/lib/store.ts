@@ -1,204 +1,174 @@
-// Local storage based store (Supabase로 마이그레이션 가능)
-import type { Group, Match, PlayerStat, Lane } from "./types";
+import { getSupabase } from "./supabase";
+import type { Group, Match, PlayerStat, Member, Lane } from "./types";
+import { calculateMvpScores } from "./mvp";
 import { v4 as uuid } from "uuid";
 
-const STORAGE_KEY = "naejeon_data";
+const GROUP_NAME = "컴학내전";
 
-interface StoreData {
-  groups: Group[];
+// ─── Matches ───
+
+export async function getAllMatches(): Promise<Match[]> {
+  const { data, error } = await getSupabase()
+    .from("matches")
+    .select("*")
+    .eq("group_name", GROUP_NAME)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    groupId: GROUP_NAME,
+    createdAt: row.created_at,
+    gameDuration: row.game_duration || "",
+    players: row.players as PlayerStat[],
+  }));
 }
 
-function getData(): StoreData {
-  if (typeof window === "undefined") return { groups: [] };
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return { groups: [] };
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { groups: [] };
-  }
-}
+export async function getMatch(matchId: string): Promise<Match | null> {
+  const { data, error } = await getSupabase()
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .single();
 
-function setData(data: StoreData) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-}
+  if (error || !data) return null;
 
-export function createGroup(name: string): Group {
-  const data = getData();
-  const group: Group = {
-    id: uuid(),
-    name,
-    inviteCode: uuid().slice(0, 8),
-    createdAt: new Date().toISOString(),
-    members: [],
-    matches: [],
+  return {
+    id: data.id,
+    groupId: GROUP_NAME,
+    createdAt: data.created_at,
+    gameDuration: data.game_duration || "",
+    players: data.players as PlayerStat[],
   };
-  data.groups.push(group);
-  setData(data);
-  return group;
 }
 
-export function getGroup(id: string): Group | null {
-  return getData().groups.find((g) => g.id === id) ?? null;
-}
+export async function addMatch(
+  players: PlayerStat[],
+  gameDuration: string
+): Promise<Match> {
+  const scored = calculateMvpScores(players);
+  const id = uuid();
 
-export function getGroupByInvite(code: string): Group | null {
-  return getData().groups.find((g) => g.inviteCode === code) ?? null;
-}
-
-export function getAllGroups(): Group[] {
-  return getData().groups;
-}
-
-export function addMember(groupId: string, nickname: string) {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) return;
-  if (group.members.some((m) => m.nickname === nickname)) return;
-  group.members.push({
-    id: uuid(),
-    nickname,
-    groupId,
-    joinedAt: new Date().toISOString(),
+  const { error } = await getSupabase().from("matches").insert({
+    id,
+    group_name: GROUP_NAME,
+    game_duration: gameDuration,
+    players: scored,
   });
-  setData(data);
-}
 
-export function addMatch(groupId: string, players: PlayerStat[], gameDuration: string): Match {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) throw new Error("Group not found");
+  if (error) throw new Error(error.message);
 
-  const match: Match = {
-    id: uuid(),
-    groupId,
-    createdAt: new Date().toISOString(),
-    gameDuration,
-    players,
-  };
-  group.matches.push(match);
+  // Auto-register new players as members
+  const existingMembers = await getAllMembers();
+  const existingNicknames = new Set(existingMembers.map((m) => m.nickname));
 
-  // Auto-register new nicknames as members
-  for (const p of players) {
-    if (!group.members.some((m) => m.nickname === p.nickname)) {
-      group.members.push({
-        id: uuid(),
-        nickname: p.nickname,
-        groupId,
-        joinedAt: new Date().toISOString(),
-      });
+  for (const p of scored) {
+    if (!existingNicknames.has(p.nickname)) {
+      await getSupabase().from("members").insert({ nickname: p.nickname });
+      existingNicknames.add(p.nickname);
     }
   }
 
-  setData(data);
-  return match;
+  return {
+    id,
+    groupId: GROUP_NAME,
+    createdAt: new Date().toISOString(),
+    gameDuration,
+    players: scored,
+  };
 }
 
-export function getMatch(groupId: string, matchId: string): Match | null {
-  const group = getGroup(groupId);
-  if (!group) return null;
-  return group.matches.find((m) => m.id === matchId) ?? null;
+export async function deleteMatch(matchId: string) {
+  await getSupabase().from("matches").delete().eq("id", matchId);
 }
 
-export function deleteMatch(groupId: string, matchId: string) {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) return;
-  group.matches = group.matches.filter((m) => m.id !== matchId);
-  setData(data);
+// ─── Members ───
+
+export async function getAllMembers(): Promise<Member[]> {
+  const { data, error } = await getSupabase()
+    .from("members")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.nickname,
+    nickname: row.nickname,
+    groupId: GROUP_NAME,
+    joinedAt: row.created_at,
+    tier: row.tier || undefined,
+    preferredLanes: (row.preferred_lanes as Lane[]) || undefined,
+    realName: row.real_name || undefined,
+    aliases: (row.aliases as string[]) || undefined,
+  }));
 }
 
-export function updateMemberProfile(
-  groupId: string,
+export async function updateMemberProfile(
   nickname: string,
   updates: { tier?: string; preferredLanes?: Lane[]; realName?: string; aliases?: string[] }
 ) {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) return;
-  const member = group.members.find((m) => m.nickname === nickname);
-  if (!member) return;
-  if (updates.tier !== undefined) member.tier = updates.tier;
-  if (updates.preferredLanes !== undefined) member.preferredLanes = updates.preferredLanes;
-  if (updates.realName !== undefined) member.realName = updates.realName;
-  if (updates.aliases !== undefined) member.aliases = updates.aliases;
-  setData(data);
+  const updateData: Record<string, unknown> = {};
+  if (updates.tier !== undefined) updateData.tier = updates.tier || null;
+  if (updates.preferredLanes !== undefined) updateData.preferred_lanes = updates.preferredLanes;
+  if (updates.realName !== undefined) updateData.real_name = updates.realName || null;
+  if (updates.aliases !== undefined) updateData.aliases = updates.aliases;
+
+  await getSupabase().from("members").update(updateData).eq("nickname", nickname);
 }
 
-// 부캐 아이디 통합: alias 닉네임의 매치 기록을 메인 닉네임으로 합산
-export function mergeAliases(groupId: string, mainNickname: string, aliasNickname: string) {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) return;
+export async function mergeAliases(mainNickname: string, aliasNickname: string) {
+  // 1. Get main member
+  const { data: main } = await getSupabase()
+    .from("members")
+    .select("*")
+    .eq("nickname", mainNickname)
+    .single();
 
-  // Add alias to main member
-  const main = group.members.find((m) => m.nickname === mainNickname);
   if (!main) return;
-  if (!main.aliases) main.aliases = [];
-  if (!main.aliases.includes(aliasNickname)) main.aliases.push(aliasNickname);
 
-  // Rename alias nickname in all match data
-  for (const match of group.matches) {
-    for (const p of match.players) {
-      if (p.nickname === aliasNickname) {
-        p.nickname = mainNickname;
+  // 2. Update aliases
+  const aliases = (main.aliases as string[]) || [];
+  if (!aliases.includes(aliasNickname)) aliases.push(aliasNickname);
+  await getSupabase().from("members").update({ aliases }).eq("nickname", mainNickname);
+
+  // 3. Rename in all match data
+  const { data: matches } = await getSupabase()
+    .from("matches")
+    .select("id, players")
+    .eq("group_name", GROUP_NAME);
+
+  if (matches) {
+    for (const match of matches) {
+      const players = match.players as PlayerStat[];
+      let changed = false;
+      for (const p of players) {
+        if (p.nickname === aliasNickname) {
+          p.nickname = mainNickname;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await getSupabase().from("matches").update({ players }).eq("id", match.id);
       }
     }
   }
 
-  // Remove alias member entry
-  group.members = group.members.filter((m) => m.nickname !== aliasNickname);
-
-  setData(data);
+  // 4. Delete alias member
+  await getSupabase().from("members").delete().eq("nickname", aliasNickname);
 }
 
-// 부캐 통합 해제
-export function unmergeAlias(groupId: string, mainNickname: string, aliasNickname: string) {
-  const data = getData();
-  const group = data.groups.find((g) => g.id === groupId);
-  if (!group) return;
+// ─── Group Helper (for compatibility with existing components) ───
 
-  const main = group.members.find((m) => m.nickname === mainNickname);
-  if (!main || !main.aliases) return;
-  main.aliases = main.aliases.filter((a) => a !== aliasNickname);
-
-  // Note: match data는 이미 변환됐으므로 되돌리지 않음 (되돌리려면 원본 데이터 필요)
-  setData(data);
-}
-
-export function importGroup(name: string, matches: Match[]): Group {
-  const data = getData();
-
-  // Check if already imported
-  const existing = data.groups.find((g) => g.name === name);
-  if (existing) return existing;
-
-  const group: Group = {
-    id: uuid(),
-    name,
-    inviteCode: uuid().slice(0, 8),
-    createdAt: new Date().toISOString(),
-    members: [],
-    matches: [],
+export async function getGroup(): Promise<Group> {
+  const [matches, members] = await Promise.all([getAllMatches(), getAllMembers()]);
+  return {
+    id: GROUP_NAME,
+    name: GROUP_NAME,
+    inviteCode: "",
+    createdAt: "",
+    members,
+    matches,
   };
-
-  // Add matches and auto-register members
-  for (const match of matches) {
-    match.groupId = group.id;
-    group.matches.push(match);
-    for (const p of match.players) {
-      if (!group.members.some((m) => m.nickname === p.nickname)) {
-        group.members.push({
-          id: uuid(),
-          nickname: p.nickname,
-          groupId: group.id,
-          joinedAt: new Date().toISOString(),
-        });
-      }
-    }
-  }
-
-  data.groups.push(group);
-  setData(data);
-  return group;
 }

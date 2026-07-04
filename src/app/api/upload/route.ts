@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { calculateMvpScores } from "@/lib/mvp";
+import { v4 as uuid } from "uuid";
+import type { PlayerStat } from "@/lib/types";
 
 const UPLOAD_SECRET = process.env.UPLOAD_SECRET || "naejeon-upload-2024";
 
@@ -6,7 +10,6 @@ export async function POST(req: NextRequest) {
   try {
     const { secret, match } = await req.json();
 
-    // 시크릿 검증
     if (secret !== UPLOAD_SECRET) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -15,69 +18,78 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid match data" }, { status: 400 });
     }
 
-    // 현재는 클라이언트에서 localStorage를 쓰므로
-    // 서버에서는 매치 데이터를 JSON으로 저장해두고
-    // 클라이언트가 폴링해서 가져가는 구조
-    // 추후 DB 연동 시 여기서 직접 저장
-
-    // 임시: 파일 기반 큐 (Vercel의 /tmp 디렉토리)
-    const fs = await import("fs");
-    const path = await import("path");
-
-    const queueDir = path.join("/tmp", "naejeon-queue");
-    if (!fs.existsSync(queueDir)) {
-      fs.mkdirSync(queueDir, { recursive: true });
-    }
-
-    const filename = `match-${Date.now()}.json`;
-    const filepath = path.join(queueDir, filename);
-
-    fs.writeFileSync(
-      filepath,
-      JSON.stringify({
-        ...match,
-        uploadedAt: new Date().toISOString(),
-      })
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
     );
 
-    console.log(`Match uploaded: ${filename}, ${match.players.length} players, ${match.gameDuration}`);
+    // Build player stats
+    const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => ({
+      id: `p-${i}`,
+      matchId: "",
+      nickname: p.nickname || "",
+      champion: p.champion || "",
+      lane: p.lane || undefined,
+      team: p.team || (i < 5 ? "blue" : "red"),
+      win: p.win ?? false,
+      kills: p.kills ?? 0,
+      deaths: p.deaths ?? 0,
+      assists: p.assists ?? 0,
+      cs: p.cs ?? 0,
+      gold: p.gold ?? 0,
+      damageDealt: p.damageDealt ?? 0,
+      damageTaken: p.damageTaken ?? 0,
+      visionScore: p.visionScore ?? 0,
+      wardsPlaced: p.wardsPlaced ?? 0,
+      wardsDestroyed: p.wardsDestroyed ?? 0,
+      objectiveDamage: p.objectiveDamage ?? 0,
+      ccScore: p.ccScore ?? 0,
+      healingDone: p.healingDone ?? 0,
+      shieldingDone: p.shieldingDone ?? 0,
+      killParticipation: 0,
+      mvpScore: 0,
+      isMvp: false,
+      isAce: false,
+    }));
+
+    const scored = calculateMvpScores(players);
+    const matchId = uuid();
+
+    const { error } = await supabase.from("matches").insert({
+      id: matchId,
+      group_name: "컴학내전",
+      game_duration: match.gameDuration || "",
+      game_mode: match.gameMode || "rift",
+      players: scored,
+    });
+
+    if (error) {
+      console.error("DB insert error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-register new members
+    const { data: existing } = await supabase.from("members").select("nickname");
+    const existingSet = new Set((existing || []).map((m) => m.nickname));
+
+    const newMembers = scored
+      .filter((p) => !existingSet.has(p.nickname))
+      .map((p) => ({ nickname: p.nickname }));
+
+    if (newMembers.length > 0) {
+      await supabase.from("members").insert(newMembers);
+    }
+
+    console.log(`Match uploaded: ${matchId}, ${scored.length} players, ${match.gameDuration}`);
 
     return NextResponse.json({
       success: true,
-      matchId: filename,
-      players: match.players.length,
+      matchId,
+      players: scored.length,
       duration: match.gameDuration,
     });
   } catch (err) {
     console.error("Upload error:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
-  }
-}
-
-// 대기 중인 매치 목록 조회 (클라이언트 폴링용)
-export async function GET(req: NextRequest) {
-  try {
-    const secret = req.nextUrl.searchParams.get("secret");
-    if (secret !== UPLOAD_SECRET) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const fs = await import("fs");
-    const path = await import("path");
-
-    const queueDir = path.join("/tmp", "naejeon-queue");
-    if (!fs.existsSync(queueDir)) {
-      return NextResponse.json({ matches: [] });
-    }
-
-    const files = fs.readdirSync(queueDir).filter((f: string) => f.endsWith(".json"));
-    const matches = files.map((f: string) => {
-      const content = fs.readFileSync(path.join(queueDir, f), "utf-8");
-      return { id: f, ...JSON.parse(content) };
-    });
-
-    return NextResponse.json({ matches });
-  } catch (err) {
-    return NextResponse.json({ matches: [] });
   }
 }

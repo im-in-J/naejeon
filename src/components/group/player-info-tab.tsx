@@ -71,9 +71,9 @@ export function PlayerInfoTab({
     setEditRealName(member.realName || "");
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editing) return;
-    updateMemberProfile(group.id, editing, {
+    await updateMemberProfile(editing, {
       tier: editTier,
       preferredLanes: editLanes,
       realName: editRealName,
@@ -91,9 +91,9 @@ export function PlayerInfoTab({
     });
   };
 
-  const handleMerge = () => {
+  const handleMerge = async () => {
     if (!mergeTarget || !mergeAlias) return;
-    mergeAliases(group.id, mergeTarget, mergeAlias);
+    await mergeAliases(mergeTarget, mergeAlias);
     setShowMerge(false);
     setMergeTarget("");
     setMergeAlias("");

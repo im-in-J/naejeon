@@ -58,9 +58,9 @@ export function MatchHistoryTab({
         <div key={date}>
           {/* Date Header */}
           <div className="flex items-center gap-3 mb-3">
-            <div className="text-sm font-semibold text-text-secondary">{date}</div>
-            <div className="flex-1 h-px bg-border" />
-            <div className="text-xs text-text-muted">{dateMatches.length}경기</div>
+            <div className="text-sm font-semibold text-ink-muted">{date}</div>
+            <div className="flex-1 h-px bg-hairline" />
+            <div className="text-xs text-ink-tertiary">{dateMatches.length}경기</div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
