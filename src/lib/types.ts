@@ -56,22 +56,3 @@ export interface PlayerStat {
   isAce: boolean;
 }
 
-export interface AnalysisResult {
-  players: Partial<PlayerStat>[];
-  gameDuration?: string;
-  confidence: number;
-}
-
-export interface LeaderboardEntry {
-  nickname: string;
-  gamesPlayed: number;
-  wins: number;
-  losses: number;
-  winRate: number;
-  avgKda: number;
-  avgDamage: number;
-  avgVision: number;
-  mvpCount: number;
-  aceCount: number;
-  totalScore: number;
-}

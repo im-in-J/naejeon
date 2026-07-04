@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { getGroup, deleteMatch } from "@/lib/store";
 import { buildPlayerStats, buildChampionStats, computeAwards } from "@/lib/stats";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,6 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
 
 export default function GroupPage() {
   const params = useParams();
-  const router = useRouter();
   const [group, setGroup] = useState<Group | null>(null);
   const [tab, setTab] = useState<Tab>("players");
   const [copied, setCopied] = useState(false);

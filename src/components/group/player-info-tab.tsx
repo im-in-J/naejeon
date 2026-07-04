@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { updateMemberProfile, mergeAliases } from "@/lib/store";
-import { Save, Edit3, User, X, Link, Plus } from "lucide-react";
+import { Save, Edit3, User, X, Link } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
 

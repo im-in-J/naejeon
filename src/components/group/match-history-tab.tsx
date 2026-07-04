@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Trash2, Upload, Gamepad2, Clock, Trophy } from "lucide-react";
+import { ChevronRight, Trash2, Gamepad2, Clock, Trophy, Download } from "lucide-react";
 import type { Match } from "@/lib/types";
 
 const LANE_EMOJI: Record<string, string> = {
@@ -26,13 +26,15 @@ export function MatchHistoryTab({
   if (matches.length === 0) {
     return (
       <Card className="text-center py-16">
-        <Gamepad2 size={48} className="mx-auto text-text-muted mb-4 opacity-50" />
-        <p className="text-text-secondary text-lg mb-2">아직 기록된 경기가 없습니다</p>
-        <p className="text-sm text-text-muted mb-6">스크린샷을 올려 첫 경기를 기록해보세요</p>
-        <Button onClick={() => router.push(`/group/${groupId}/upload`)}>
-          <Upload size={16} />
-          첫 경기 등록하기
-        </Button>
+        <Gamepad2 size={48} className="mx-auto text-ink-tertiary mb-4 opacity-50" />
+        <p className="text-ink-muted text-lg mb-2">아직 기록된 경기가 없습니다</p>
+        <p className="text-sm text-ink-subtle mb-6">수집기를 설치하면 게임 종료 시 자동으로 기록됩니다</p>
+        <a href="/api/collector" download>
+          <Button>
+            <Download size={16} />
+            수집기 다운로드
+          </Button>
+        </a>
       </Card>
     );
   }

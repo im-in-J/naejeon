@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Crown, Trophy, ChevronDown, ChevronUp } from "lucide-react";
+import { Crown } from "lucide-react";
 import type { PlayerStats, Award } from "@/lib/stats";
 
 type SortKey = "totalScore" | "winRate" | "avgKda" | "avgCs" | "avgGold" | "mvpCount" | "gamesPlayed";

@@ -266,7 +266,7 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   if (mostMvp.mvpCount > 0)
     awards.push({ title: "MVP 헌터", emoji: "🏆", player: mostMvp.nickname, value: `${mostMvp.mvpCount}회` });
 
-  const bestKda = qualified.sort((a, b) => b.avgKda - a.avgKda)[0];
+  const bestKda = [...qualified].sort((a, b) => b.avgKda - a.avgKda)[0];
   if (bestKda)
     awards.push({ title: "KDA 장인", emoji: "⚔️", player: bestKda.nickname, value: `${bestKda.avgKda.toFixed(2)}` });
 
@@ -278,7 +278,7 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   if (mostDeaths && mostDeaths.totalDeaths > 0)
     awards.push({ title: "공공의 적", emoji: "💀", player: mostDeaths.nickname, value: `${mostDeaths.totalDeaths} 데스` });
 
-  const farmKing = qualified.sort((a, b) => b.avgCs - a.avgCs)[0];
+  const farmKing = [...qualified].sort((a, b) => b.avgCs - a.avgCs)[0];
   if (farmKing)
     awards.push({ title: "농사왕", emoji: "🌾", player: farmKing.nickname, value: `평균 ${Math.round(farmKing.avgCs)} CS` });
 
@@ -290,7 +290,7 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   if (mostGames)
     awards.push({ title: "내전 중독", emoji: "🎮", player: mostGames.nickname, value: `${mostGames.gamesPlayed}판` });
 
-  const bestGold = qualified.sort((a, b) => b.avgGold - a.avgGold)[0];
+  const bestGold = [...qualified].sort((a, b) => b.avgGold - a.avgGold)[0];
   if (bestGold)
     awards.push({ title: "골드 부자", emoji: "💰", player: bestGold.nickname, value: `평균 ${Math.round(bestGold.avgGold).toLocaleString()}` });
 
@@ -305,8 +305,6 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   for (const m of group.matches) {
     const blue = m.players.filter((p) => p.team === "blue");
     const red = m.players.filter((p) => p.team === "red");
-    const blueWin = blue.length > 0 && blue[0].win;
-
     for (const team of [blue, red]) {
       const win = team.length > 0 && team[0].win;
       for (let i = 0; i < team.length; i++) {
@@ -351,13 +349,13 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   }
 
   // 견우와 직녀 (적팀으로 가장 많이 만나고 같은 팀은 거의 없는 두 명)
-  let starCrossed: { key: string; oppGames: number; sameGames: number } | null = null;
+  let starCrossed: { key: string; oppGames: number; sameGames: number; ratio: number } | null = null;
   for (const [key, oppGames] of oppMap) {
     const sameGames = duoMap.get(key)?.total || 0;
-    const ratio = oppGames / (sameGames + 1); // 같은 팀 적을수록 높음
+    const ratio = oppGames / (sameGames + 1);
     if (oppGames < 3) continue;
-    if (!starCrossed || ratio > oppGames / ((duoMap.get(starCrossed.key)?.total || 0) + 1) || oppGames > starCrossed.oppGames)
-      starCrossed = { key, oppGames, sameGames };
+    if (!starCrossed || ratio > starCrossed.ratio)
+      starCrossed = { key, oppGames, sameGames, ratio };
   }
 
   if (starCrossed) {
