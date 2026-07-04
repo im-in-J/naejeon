@@ -2,9 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getSupabase } from "@/lib/supabase";
-import { importNaejeonData } from "@/lib/import-naejeon";
-import { calculateMvpScores } from "@/lib/mvp";
 
 export default function HomePage() {
   const router = useRouter();
@@ -12,47 +9,29 @@ export default function HomePage() {
 
   useEffect(() => {
     async function init() {
-      // Check if matches exist in DB
-      const { count } = await getSupabase()
-        .from("matches")
-        .select("*", { count: "exact", head: true });
+      // Supabase를 서버 API를 통해 확인
+      const res = await fetch("/api/debug");
+      const debug = await res.json();
 
-      if (count && count > 0) {
-        router.replace("/group/main");
+      if (debug.db !== "CONNECTED") {
+        setStatus("DB 연결 실패. 환경변수를 확인해주세요.");
         return;
       }
 
-      // Seed initial data from imported JSON
-      setStatus("초기 데이터 세팅 중...");
-      const { matches } = importNaejeonData();
+      // 매치 존재 여부 확인 후 시드 또는 이동
+      const seedRes = await fetch("/api/seed");
+      const seedData = await seedRes.json();
 
-      for (const match of matches) {
-        await getSupabase().from("matches").insert({
-          id: match.id,
-          group_name: "컴학내전",
-          created_at: match.createdAt,
-          game_duration: match.gameDuration,
-          players: match.players,
-        });
+      if (seedData.success) {
+        router.replace("/group/main");
+      } else {
+        setStatus(seedData.error || "초기화 실패");
       }
-
-      // Register members from match data
-      const nicknames = new Set<string>();
-      for (const m of matches) {
-        for (const p of m.players) {
-          nicknames.add(p.nickname);
-        }
-      }
-
-      const members = Array.from(nicknames).map((nickname) => ({ nickname }));
-      await getSupabase().from("members").upsert(members, { onConflict: "nickname" });
-
-      router.replace("/group/main");
     }
 
     init().catch((err) => {
       console.error(err);
-      setStatus("DB 연결 실패. 환경변수를 확인해주세요.");
+      setStatus(`에러: ${err.message}`);
     });
   }, [router]);
 
