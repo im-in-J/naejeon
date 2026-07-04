@@ -12,7 +12,6 @@ import { BalanceTab } from "@/components/group/balance-tab";
 import { PlayerInfoTab } from "@/components/group/player-info-tab";
 import { TeamSideTab } from "@/components/group/team-side-tab";
 import {
-  Upload,
   Copy,
   Check,
   Users,
@@ -92,10 +91,6 @@ export default function GroupPage() {
           <Button variant="ghost" size="sm" onClick={copyInviteLink}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
             {copied ? "복사됨" : "초대"}
-          </Button>
-          <Button size="sm" onClick={() => router.push(`/group/${groupId}/upload`)}>
-            <Upload size={13} />
-            등록
           </Button>
         </div>
       </div>
