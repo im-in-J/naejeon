@@ -15,13 +15,19 @@ export async function GET() {
 
     const supabase = createClient(url, key);
 
-    // Check if data already exists
-    const { count } = await supabase
+    // Check if imported data already exists (by checking a known match id)
+    const firstImportId = (rawMatches[0] as { id: string }).id;
+    const { data: existing } = await supabase
       .from("matches")
-      .select("*", { count: "exact", head: true });
+      .select("id")
+      .eq("id", firstImportId)
+      .single();
 
-    if (count && count > 0) {
-      return NextResponse.json({ success: true, message: "이미 데이터 존재", count });
+    if (existing) {
+      const { count } = await supabase
+        .from("matches")
+        .select("*", { count: "exact", head: true });
+      return NextResponse.json({ success: true, message: "이미 시드 완료", count });
     }
 
     // Seed from imported data
