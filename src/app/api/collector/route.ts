@@ -9,17 +9,35 @@ export async function GET(req: NextRequest) {
 
   // Read and patch collector.py
   const pyPath = join(process.cwd(), "collector", "collector.py");
-  const pyContent = readFileSync(pyPath, "utf-8").replace(
+  let pyContent: string;
+  try {
+    pyContent = readFileSync(pyPath, "utf-8");
+  } catch (err) {
+    console.error("collector.py not found in server bundle:", err);
+    return NextResponse.json(
+      { error: "수집기 파일을 찾을 수 없습니다 (서버 번들 누락)" },
+      { status: 500 }
+    );
+  }
+  pyContent = pyContent.replace(
     'SERVER_URL = "https://your-site.vercel.app"',
     `SERVER_URL = "${serverUrl}"`
   );
+  // 서버에 UPLOAD_SECRET 환경변수가 설정돼 있으면 수집기에도 동일하게 심어줌
+  if (process.env.UPLOAD_SECRET) {
+    pyContent = pyContent.replace(
+      'UPLOAD_SECRET = "naejeon-upload-2024"',
+      `UPLOAD_SECRET = ${JSON.stringify(process.env.UPLOAD_SECRET)}`
+    );
+  }
 
   // Read bat file
   const batPath = join(process.cwd(), "collector", "내전수집기.bat");
   let batContent: string;
   try {
     batContent = readFileSync(batPath, "utf-8");
-  } catch {
+  } catch (err) {
+    console.error("내전수집기.bat not found in server bundle, using fallback:", err);
     batContent = '@echo off\npython "%~dp0naejeon-collector.py"\npause';
   }
 

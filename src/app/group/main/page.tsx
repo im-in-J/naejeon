@@ -199,7 +199,7 @@ export default function MainGroupPage() {
             <h3 className="text-ink font-semibold mb-2">주의사항</h3>
             <ul className="list-disc list-inside space-y-1 text-xs">
               <li>롤 클라이언트가 켜져있어야 합니다</li>
-              <li>내전 참여자 중 <span className="text-ink font-medium">1명만</span> 실행하면 됩니다 (중복 방지)</li>
+              <li>같은 게임은 서버에서 자동으로 중복 방지됩니다 (여러 명이 실행해도 안전)</li>
               <li>업로드 실패 시 로컬에 백업 파일이 저장됩니다</li>
             </ul>
           </div>

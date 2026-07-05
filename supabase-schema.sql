@@ -8,8 +8,12 @@ CREATE TABLE matches (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   game_duration TEXT,
   game_mode TEXT DEFAULT 'rift',
+  game_id TEXT UNIQUE, -- 롤 클라이언트 gameId (수집기 중복 업로드 방지, 수동 입력은 NULL)
   players JSONB NOT NULL
 );
+
+-- ── 기존 DB 마이그레이션 (이미 테이블이 있으면 아래만 실행) ──
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS game_id TEXT UNIQUE;
 
 -- 멤버 테이블 (선수 정보)
 CREATE TABLE members (

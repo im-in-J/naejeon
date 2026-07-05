@@ -34,6 +34,24 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // 같은 게임 중복 업로드 방지 (game_id 컬럼이 없는 구버전 DB면 조용히 건너뜀)
+    const gameId = match.gameId != null ? String(match.gameId) : null;
+    if (gameId) {
+      const { data: dup, error: dupError } = await supabase
+        .from("matches")
+        .select("id")
+        .eq("game_id", gameId)
+        .limit(1);
+
+      if (!dupError && dup && dup.length > 0) {
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          matchId: dup[0].id,
+        });
+      }
+    }
+
     // Build player stats
     const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => ({
       id: `p-${i}`,
@@ -66,13 +84,22 @@ export async function POST(req: NextRequest) {
     const scored = calculateMvpScores(players);
     const matchId = uuid();
 
-    const { error: insertError } = await supabase.from("matches").insert({
+    const row: Record<string, unknown> = {
       id: matchId,
       group_name: "컴학내전",
       game_duration: match.gameDuration || "",
       game_mode: match.gameMode || "rift",
       players: scored,
-    });
+    };
+    if (gameId) row.game_id = gameId;
+
+    let { error: insertError } = await supabase.from("matches").insert(row);
+
+    // game_id 컬럼이 없는 구버전 DB → 컬럼 빼고 재시도
+    if (insertError && gameId && /game_id/.test(insertError.message)) {
+      delete row.game_id;
+      ({ error: insertError } = await supabase.from("matches").insert(row));
+    }
 
     if (insertError) {
       console.error("DB insert error:", insertError);

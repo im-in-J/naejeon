@@ -48,5 +48,6 @@ if "%choice%"=="1" (
 )
 
 echo.
-echo  아무 키나 누르면 닫힙니다...
+echo  아무 키나 누르면 메뉴로 돌아갑니다...
 pause >nul
+goto menu

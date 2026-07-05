@@ -4,10 +4,7 @@
 
 ## 설치
 
-```bash
-# Python 3.8+ 필요
-pip install requests psutil
-```
+Python 3.8+만 있으면 됩니다. 외부 패키지 설치 불필요 (표준 라이브러리만 사용).
 
 ## 설정
 
@@ -26,15 +23,16 @@ set LOL_PATH=D:\Games\League of Legends
 ## 실행
 
 ```bash
-python collector.py
+python collector.py            # 실시간 수집
+python collector.py --history  # 과거 커스텀 게임 선택 업로드
 ```
 
 ## 동작 방식
 
 1. 롤 클라이언트 lockfile 자동 감지
-2. 게임 진행 중 → 종료 대기
-3. 게임 종료 → LCU API로 상세 스탯 추출
-4. 서버에 자동 업로드
+2. 게임 진행 중 → 종료 대기 (전적 화면 로딩 중에도 놓치지 않음)
+3. 게임 종료 → LCU API로 상세 스탯 추출 (준비 안 됐으면 3초 간격 재시도)
+4. 커스텀 게임만 서버에 자동 업로드 (gameId로 중복 업로드 방지)
 5. 업로드 실패 시 로컬 JSON 백업
 
 ## 추출 데이터
