@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateMvpScores } from "@/lib/mvp";
+import { normalizeChampionName } from "@/lib/champions";
 import { v4 as uuid } from "uuid";
 import type { PlayerStat } from "@/lib/types";
 
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       id: `p-${i}`,
       matchId,
       nickname: aliasMap.get(rawNickname) || rawNickname,
-      champion: String(p.champion || ""),
+      champion: normalizeChampionName(String(p.champion || "")),
       lane: p.lane || undefined,
       team: p.team || (i < 5 ? "blue" : "red"),
       win: Boolean(p.win),
@@ -111,7 +112,10 @@ export async function POST(req: NextRequest) {
     if (gameId) row.game_id = gameId;
     if (gameCreation) row.created_at = gameCreation;
     if (match.bans && (match.bans.blue?.length || match.bans.red?.length)) {
-      row.bans = { blue: match.bans.blue || [], red: match.bans.red || [] };
+      row.bans = {
+        blue: (match.bans.blue || []).map((c: string) => normalizeChampionName(String(c))),
+        red: (match.bans.red || []).map((c: string) => normalizeChampionName(String(c))),
+      };
     }
 
     const save = async () => {

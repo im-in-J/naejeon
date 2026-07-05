@@ -49,7 +49,26 @@ const KO_TO_KEY: Record<string, string> = {
   "제리": "Zeri", "직스": "Ziggs", "질리언": "Zilean", "조이": "Zoe", "자이라": "Zyra",
   // 누누 별명
   "누누": "Nunu",
+  // 누락분 + 신규 챔피언
+  "벡스": "Vex",
+  "유나라": "Yunara",
+  "자헨": "Zaahen",
 };
+
+// 영문 key → 한글 이름 (역방향, 별명보다 정식 이름 우선)
+const KEY_TO_KO: Record<string, string> = {};
+for (const [ko, key] of Object.entries(KO_TO_KEY)) {
+  if (!(key in KEY_TO_KO)) KEY_TO_KO[key] = ko;
+}
+
+/** 챔피언 이름을 한글로 정규화. 수집기가 올리는 영문 이름(Aatrox, MonkeyKing 등)을
+ * 한글로 바꿔서 표시·집계가 "아트록스"/"Aatrox"로 갈라지지 않게 함.
+ * 매핑에 없는 이름(최신 챔피언 등)은 그대로 반환. */
+export function normalizeChampionName(name: string): string {
+  if (!name) return name;
+  if (KO_TO_KEY[name]) return name; // 이미 한글 정식 이름
+  return KEY_TO_KO[name] || KEY_TO_KO[name.replace(/\s/g, "")] || name;
+}
 
 export function getChampionIconUrl(championName: string): string | null {
   // 1. 한글 이름으로 매핑 시도

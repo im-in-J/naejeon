@@ -1,9 +1,23 @@
 import { getSupabase } from "./supabase";
 import type { Group, Match, PlayerStat, Member, Lane } from "./types";
 import { calculateMvpScores } from "./mvp";
+import { normalizeChampionName } from "./champions";
 import { v4 as uuid } from "uuid";
 
 const GROUP_NAME = "컴학내전";
+
+// 수집기가 영문 챔피언 이름으로 올린 과거 데이터를 한글로 정규화해서 읽음
+function normalizePlayers(players: PlayerStat[]): PlayerStat[] {
+  return players.map((p) => ({ ...p, champion: normalizeChampionName(p.champion) }));
+}
+
+function normalizeBans(bans: Match["bans"]): Match["bans"] | undefined {
+  if (!bans) return undefined;
+  return {
+    blue: (bans.blue || []).map(normalizeChampionName),
+    red: (bans.red || []).map(normalizeChampionName),
+  };
+}
 
 // ─── Matches ───
 
@@ -21,8 +35,8 @@ export async function getAllMatches(): Promise<Match[]> {
     groupId: GROUP_NAME,
     createdAt: row.created_at,
     gameDuration: row.game_duration || "",
-    players: row.players as PlayerStat[],
-    bans: (row.bans as Match["bans"]) || undefined,
+    players: normalizePlayers(row.players as PlayerStat[]),
+    bans: normalizeBans(row.bans as Match["bans"]),
   }));
 }
 
@@ -40,8 +54,8 @@ export async function getMatch(matchId: string): Promise<Match | null> {
     groupId: GROUP_NAME,
     createdAt: data.created_at,
     gameDuration: data.game_duration || "",
-    players: data.players as PlayerStat[],
-    bans: (data.bans as Match["bans"]) || undefined,
+    players: normalizePlayers(data.players as PlayerStat[]),
+    bans: normalizeBans(data.bans as Match["bans"]),
   };
 }
 
