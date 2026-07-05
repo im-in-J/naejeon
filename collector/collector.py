@@ -121,9 +121,21 @@ def format_match_data(eog_data):
 
         for p in team.get("players", []):
             stats = p.get("stats", {})
+            # Riot ID 체계 대응: 여러 필드에서 닉네임 찾기
+            nickname = (
+                p.get("summonerName")
+                or p.get("riotIdGameName")
+                or p.get("gameName")
+                or p.get("puuid", "")[:8]
+            )
+            champion = (
+                p.get("championName")
+                or p.get("skinName")
+                or ""
+            )
             player = {
-                "nickname": p.get("summonerName", ""),
-                "champion": p.get("championName", ""),
+                "nickname": nickname,
+                "champion": champion,
                 "team": team_side,
                 "win": is_winner,
                 "kills": stats.get("CHAMPIONS_KILLED", 0),
@@ -223,6 +235,17 @@ def main():
                         if match_data and len(match_data["players"]) == 10:
                             print(f"  📊 {len(match_data['players'])}명 데이터 추출 완료")
                             print(f"  ⏱️  게임 시간: {match_data['gameDuration']}")
+
+                            # 플레이어 닉네임 확인
+                            for mp in match_data["players"]:
+                                print(f"    {mp['team']:4s} | {mp['nickname']:20s} | {mp['champion']}")
+
+                            # 닉네임 누락 체크
+                            empty_names = [p for p in match_data["players"] if not p["nickname"]]
+                            if empty_names:
+                                print(f"  ⚠️  닉네임 누락 {len(empty_names)}명! EOG 원본 키 덤프:")
+                                for p in eog.get("teams", [{}])[0].get("players", [])[:1]:
+                                    print(f"    플레이어 키: {list(p.keys())}")
 
                             # 팀 정보 출력
                             blue = [p for p in match_data["players"] if p["team"] == "blue"]
