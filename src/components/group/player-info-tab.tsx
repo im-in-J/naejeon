@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@/lib/store";
+import { ChampionIcon } from "@/components/ui/champion-icon";
 import { Save, Edit3, User, X, Link, Trash2, PenLine } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
@@ -145,9 +146,15 @@ export function PlayerInfoTab({
           <Card key={player.nickname} className="p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-bg-secondary flex items-center justify-center">
-                  <User size={16} className="text-text-muted" />
-                </div>
+                {player.champions.length > 0 ? (
+                  <div title={`모스트: ${player.champions[0].champion}`}>
+                    <ChampionIcon name={player.champions[0].champion} size={36} className="rounded-xl" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-xl bg-bg-secondary flex items-center justify-center">
+                    <User size={16} className="text-text-muted" />
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="font-semibold text-text-primary text-sm">{player.nickname}</span>
@@ -180,6 +187,28 @@ export function PlayerInfoTab({
                     <span key={alias} className="text-xs px-1.5 py-0.5 rounded bg-bg-secondary text-text-secondary">
                       {alias}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Most Champions */}
+            {player.champions.length > 0 && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-text-muted w-12">모스트</span>
+                <div className="flex flex-wrap gap-2">
+                  {player.champions.slice(0, 3).map((c) => (
+                    <div
+                      key={c.champion}
+                      className="flex items-center gap-1"
+                      title={`${c.champion} · ${c.games}판 · 승률 ${c.winRate.toFixed(0)}% · KDA ${c.avgKda.toFixed(2)}`}
+                    >
+                      <ChampionIcon name={c.champion} size={20} />
+                      <span className="text-xs text-text-secondary">{c.games}판</span>
+                      <span className={`text-xs ${c.winRate >= 50 ? "text-win" : "text-lose"}`}>
+                        {c.winRate.toFixed(0)}%
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
