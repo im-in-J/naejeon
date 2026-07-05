@@ -35,6 +35,13 @@ function getTierScore(champ: ChampionStats): number {
   return wrScore * 0.6 + kdaScore * 0.4;
 }
 
+// 정렬용 순위 점수: 판수를 반영한 보정 승률 (1판 100%가 10판 60%보다 위로 가지 않게)
+function getRankScore(champ: ChampionStats): number {
+  const smoothedWR = ((champ.wins + 2.5) / (champ.totalGames + 5)) * 100;
+  const kdaScore = (Math.min(champ.avgKda, 8) / 8) * 100;
+  return smoothedWR * 0.6 + kdaScore * 0.4;
+}
+
 function getChampTier(champ: ChampionStats): TierDef {
   if (champ.totalGames === 1) return TIERS[2]; // 데이터 부족 → B
   const score = getTierScore(champ);
@@ -46,7 +53,7 @@ function getChampTier(champ: ChampionStats): TierDef {
 
 export function ChampionStatsTab({ championStats }: { championStats: ChampionStats[] }) {
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<ViewMode>("tierlist");
+  const [view, setView] = useState<ViewMode>("table");
   const [selected, setSelected] = useState<ChampionStats | null>(null);
 
   const filtered = useMemo(() => {
@@ -59,7 +66,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
       ...tier,
       champions: filtered
         .filter((c) => getChampTier(c).tier === tier.tier)
-        .sort((a, b) => getTierScore(b) - getTierScore(a)),
+        .sort((a, b) => getRankScore(b) - getRankScore(a)),
     }));
   }, [filtered]);
 
@@ -160,8 +167,14 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                 </tr>
               </thead>
               <tbody>
-                {filtered
-                  .sort((a, b) => b.winRate - a.winRate)
+                {[...filtered]
+                  .sort((a, b) => {
+                    // 티어 높은순 → 같은 티어 안에서는 판수 보정 승률순
+                    const tierDiff =
+                      TIERS.findIndex((t) => t.tier === getChampTier(a).tier) -
+                      TIERS.findIndex((t) => t.tier === getChampTier(b).tier);
+                    return tierDiff !== 0 ? tierDiff : getRankScore(b) - getRankScore(a);
+                  })
                   .map((champ) => {
                     const tier = getChampTier(champ);
                     return (
@@ -259,6 +272,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
           </div>
           <p className="text-ink-tertiary">
             1판만 플레이한 챔피언은 데이터 부족으로 B 티어에 배치됩니다.
+            테이블 정렬은 판수를 반영한 보정 승률 기준이라 판수가 적은 챔피언은 아래로 밀립니다.
           </p>
         </div>
       </div>

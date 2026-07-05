@@ -20,6 +20,8 @@ export interface PlayerStats {
   avgDamage: number;
   avgDamageTaken: number;
   avgVision: number;
+  csPerMin: number;
+  avgKillParticipation: number; // 0~100
   goldPerMin: number;
   avgTurretDamage: number;
   avgCcScore: number;
@@ -55,14 +57,23 @@ export interface ChampionUsage {
 export function buildPlayerStats(group: Group): PlayerStats[] {
   const map = new Map<string, PlayerStat[]>();
   const minutesMap = new Map<string, number>(); // nickname → 총 플레이 시간(분)
+  const kpMap = new Map<string, number[]>(); // nickname → 경기별 킬관여율
 
   for (const match of group.matches) {
     const minutes = parseDurationMinutes(match.gameDuration);
+    const teamKills = { blue: 0, red: 0 };
+    for (const p of match.players) teamKills[p.team] += p.kills;
+
     for (const p of match.players) {
       const arr = map.get(p.nickname) || [];
       arr.push(p);
       map.set(p.nickname, arr);
       minutesMap.set(p.nickname, (minutesMap.get(p.nickname) || 0) + minutes);
+
+      const tk = teamKills[p.team];
+      const kps = kpMap.get(p.nickname) || [];
+      kps.push(tk > 0 ? ((p.kills + p.assists) / tk) * 100 : 0);
+      kpMap.set(p.nickname, kps);
     }
   }
 
@@ -171,6 +182,15 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
         avgDamage: stats.reduce((s, p) => s + (p.damageDealt || 0), 0) / stats.length,
         avgDamageTaken: stats.reduce((s, p) => s + (p.damageTaken || 0), 0) / stats.length,
         avgVision: stats.reduce((s, p) => s + (p.visionScore || 0), 0) / stats.length,
+        csPerMin: (() => {
+          const totalMinutes = minutesMap.get(nickname) || 0;
+          const totalCs = stats.reduce((s, p) => s + p.cs, 0);
+          return totalMinutes > 0 ? totalCs / totalMinutes : 0;
+        })(),
+        avgKillParticipation: (() => {
+          const kps = kpMap.get(nickname) || [];
+          return kps.length > 0 ? kps.reduce((s, v) => s + v, 0) / kps.length : 0;
+        })(),
         goldPerMin: (() => {
           const totalMinutes = minutesMap.get(nickname) || 0;
           const totalGold = stats.reduce((s, p) => s + p.gold, 0);
