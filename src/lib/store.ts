@@ -128,15 +128,18 @@ export async function updateMemberProfile(
   await getSupabase().from("members").update(updateData).eq("nickname", nickname);
 }
 
-export async function mergeAliases(mainNickname: string, aliasNickname: string) {
-  // 1. Get main member
-  const { data: main } = await getSupabase()
+export async function mergeAliases(mainNickname: string, aliasNickname: string): Promise<number> {
+  // 1. Get main member (members에 없으면 생성 — 없다고 조용히 실패하면 안 됨)
+  let { data: main } = await getSupabase()
     .from("members")
     .select("*")
     .eq("nickname", mainNickname)
     .single();
 
-  if (!main) return;
+  if (!main) {
+    await getSupabase().from("members").upsert({ nickname: mainNickname }, { onConflict: "nickname" });
+    main = { nickname: mainNickname, aliases: [] };
+  }
 
   // 2. Update aliases (부캐가 이미 갖고 있던 부캐 목록도 승계)
   const { data: aliasMember } = await getSupabase()
@@ -158,6 +161,7 @@ export async function mergeAliases(mainNickname: string, aliasNickname: string) 
     .select("id, players")
     .eq("group_name", GROUP_NAME);
 
+  let renamedMatches = 0;
   if (matches) {
     for (const match of matches) {
       const players = match.players as PlayerStat[];
@@ -169,13 +173,16 @@ export async function mergeAliases(mainNickname: string, aliasNickname: string) 
         }
       }
       if (changed) {
-        await getSupabase().from("matches").update({ players }).eq("id", match.id);
+        const { error } = await getSupabase().from("matches").update({ players }).eq("id", match.id);
+        if (!error) renamedMatches++;
       }
     }
   }
 
   // 4. Delete alias member
   await getSupabase().from("members").delete().eq("nickname", aliasNickname);
+
+  return renamedMatches;
 }
 
 // ─── Member Rename / Delete ───

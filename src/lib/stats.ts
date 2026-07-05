@@ -174,6 +174,101 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
     .sort((a, b) => b.totalScore - a.totalScore);
 }
 
+// ─── Radar Stats (5각 스탯) ───
+// 각 축은 그룹 내 백분위(0~100). 15분 시점 데이터가 없어 골드차이는
+// 게임 전체 기준 "상대팀 평균 대비 분당 골드 차이"로 계산.
+
+export interface RadarStats {
+  nickname: string;
+  goldDiff: number; // 골드차이
+  combat: number; // 전투 (분당 딜량 + 킬관여)
+  growth: number; // 성장 (분당 CS + 분당 골드)
+  vision: number; // 시야 (분당 시야점수)
+  survival: number; // 생존 (분당 데스 억제)
+}
+
+function parseDurationMinutes(duration: string): number {
+  const parts = duration.split(":").map((n) => parseInt(n, 10));
+  if (parts.some(isNaN) || parts.length < 2) return 30;
+  const seconds = parts.length === 3
+    ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+    : parts[0] * 60 + parts[1];
+  return seconds > 0 ? seconds / 60 : 30;
+}
+
+function percentileOf(pool: number[], v: number): number {
+  if (pool.length <= 1) return 50;
+  let less = 0;
+  let equal = 0;
+  for (const x of pool) {
+    if (x < v) less++;
+    else if (x === v) equal++;
+  }
+  return ((less + equal / 2) / pool.length) * 100;
+}
+
+export function buildRadarStats(group: Group): Map<string, RadarStats> {
+  interface Raw { dpm: number[]; kp: number[]; cspm: number[]; gpm: number[]; vspm: number[]; deathsPm: number[]; goldDiffPm: number[] }
+  const rawMap = new Map<string, Raw>();
+
+  for (const match of group.matches) {
+    const minutes = parseDurationMinutes(match.gameDuration);
+    for (const p of match.players) {
+      const teammates = match.players.filter((q) => q.team === p.team);
+      const enemies = match.players.filter((q) => q.team !== p.team);
+      const teamKills = teammates.reduce((s, q) => s + q.kills, 0);
+      const enemyAvgGold = enemies.length > 0
+        ? enemies.reduce((s, q) => s + q.gold, 0) / enemies.length
+        : p.gold;
+
+      const raw = rawMap.get(p.nickname) || { dpm: [], kp: [], cspm: [], gpm: [], vspm: [], deathsPm: [], goldDiffPm: [] };
+      raw.dpm.push((p.damageDealt || 0) / minutes);
+      raw.kp.push(teamKills > 0 ? (p.kills + p.assists) / teamKills : 0);
+      raw.cspm.push(p.cs / minutes);
+      raw.gpm.push(p.gold / minutes);
+      raw.vspm.push((p.visionScore || 0) / minutes);
+      raw.deathsPm.push(p.deaths / minutes);
+      raw.goldDiffPm.push((p.gold - enemyAvgGold) / minutes);
+      rawMap.set(p.nickname, raw);
+    }
+  }
+
+  const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
+  const players = Array.from(rawMap.entries()).map(([nickname, raw]) => ({
+    nickname,
+    dpm: avg(raw.dpm),
+    kp: avg(raw.kp),
+    cspm: avg(raw.cspm),
+    gpm: avg(raw.gpm),
+    vspm: avg(raw.vspm),
+    deathsPm: avg(raw.deathsPm),
+    goldDiffPm: avg(raw.goldDiffPm),
+  }));
+
+  const pools = {
+    dpm: players.map((p) => p.dpm),
+    kp: players.map((p) => p.kp),
+    cspm: players.map((p) => p.cspm),
+    gpm: players.map((p) => p.gpm),
+    vspm: players.map((p) => p.vspm),
+    deathsPm: players.map((p) => p.deathsPm),
+    goldDiffPm: players.map((p) => p.goldDiffPm),
+  };
+
+  const result = new Map<string, RadarStats>();
+  for (const p of players) {
+    result.set(p.nickname, {
+      nickname: p.nickname,
+      goldDiff: percentileOf(pools.goldDiffPm, p.goldDiffPm),
+      combat: percentileOf(pools.dpm, p.dpm) * 0.5 + percentileOf(pools.kp, p.kp) * 0.5,
+      growth: percentileOf(pools.cspm, p.cspm) * 0.5 + percentileOf(pools.gpm, p.gpm) * 0.5,
+      vision: percentileOf(pools.vspm, p.vspm),
+      survival: 100 - percentileOf(pools.deathsPm, p.deathsPm),
+    });
+  }
+  return result;
+}
+
 // ─── Champion Stats ───
 
 export interface ChampionStats {

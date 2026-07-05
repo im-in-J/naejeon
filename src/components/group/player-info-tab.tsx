@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@/lib/store";
 import { ChampionIcon } from "@/components/ui/champion-icon";
+import { RadarChart } from "@/components/ui/radar-chart";
+import { buildRadarStats } from "@/lib/stats";
 import { Save, Edit3, User, X, Link, Trash2, PenLine } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
@@ -111,12 +113,24 @@ export function PlayerInfoTab({
 
   const handleMerge = async () => {
     if (!mergeTarget || !mergeAlias) return;
-    await mergeAliases(mergeTarget, mergeAlias);
+    const renamed = await mergeAliases(mergeTarget, mergeAlias);
     setShowMerge(false);
     setMergeTarget("");
     setMergeAlias("");
     onUpdate();
+    alert(
+      renamed > 0
+        ? `${mergeAlias} → ${mergeTarget} 통합 완료 (${renamed}경기 기록 이동)`
+        : `${mergeAlias} → ${mergeTarget} 통합했지만 이동된 경기 기록이 없습니다.\n부캐 닉네임이 매치 기록과 정확히 일치하는지 확인해주세요.`
+    );
   };
+
+  // 통합 대상 목록: 멤버 + 매치 기록에만 존재하는 닉네임(멤버 등록 누락, [삭제] 처리된 기록 등)까지 포함
+  const mergeCandidates = Array.from(
+    new Set([...group.members.map((m) => m.nickname), ...playerStats.map((p) => p.nickname)])
+  ).sort((a, b) => a.localeCompare(b, "ko"));
+
+  const radarStats = useMemo(() => buildRadarStats(group), [group]);
 
   const players = playerStats.map((ps) => {
     const member = group.members.find((m) => m.nickname === ps.nickname);
@@ -126,6 +140,7 @@ export function PlayerInfoTab({
       preferredLanes: member?.preferredLanes,
       realName: member?.realName,
       aliases: member?.aliases,
+      radar: radarStats.get(ps.nickname),
     };
   });
 
@@ -248,6 +263,25 @@ export function PlayerInfoTab({
                 <span className="text-xs text-text-muted">미설정</span>
               )}
             </div>
+
+            {/* 5각 스탯 */}
+            {player.radar && player.gamesPlayed >= 2 && (
+              <div className="border-t border-border pt-2 mb-1">
+                <div className="text-xs text-text-muted mb-1">능력치 (그룹 내 백분위)</div>
+                <div className="flex justify-center">
+                  <RadarChart
+                    size={210}
+                    axes={[
+                      { label: "골드차이", value: player.radar.goldDiff, hint: "상대팀 평균 대비 분당 골드 차이" },
+                      { label: "전투", value: player.radar.combat, hint: "분당 딜량 + 킬관여" },
+                      { label: "성장", value: player.radar.growth, hint: "분당 CS + 분당 골드" },
+                      { label: "시야", value: player.radar.vision, hint: "분당 시야점수" },
+                      { label: "생존", value: player.radar.survival, hint: "분당 데스가 적을수록 높음" },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Lane Stats */}
             {player.laneStats.length > 0 && (
@@ -420,11 +454,14 @@ export function PlayerInfoTab({
               onChange={(e) => setMergeTarget(e.target.value)}
             >
               <option value="">선택하세요</option>
-              {group.members.map((m) => (
-                <option key={m.nickname} value={m.nickname}>
-                  {m.nickname}{m.realName ? ` (${m.realName})` : ""}
-                </option>
-              ))}
+              {mergeCandidates.map((n) => {
+                const member = group.members.find((m) => m.nickname === n);
+                return (
+                  <option key={n} value={n}>
+                    {n}{member?.realName ? ` (${member.realName})` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -436,13 +473,16 @@ export function PlayerInfoTab({
               onChange={(e) => setMergeAlias(e.target.value)}
             >
               <option value="">선택하세요</option>
-              {group.members
-                .filter((m) => m.nickname !== mergeTarget)
-                .map((m) => (
-                  <option key={m.nickname} value={m.nickname}>
-                    {m.nickname}{m.realName ? ` (${m.realName})` : ""}
-                  </option>
-                ))}
+              {mergeCandidates
+                .filter((n) => n !== mergeTarget)
+                .map((n) => {
+                  const member = group.members.find((m) => m.nickname === n);
+                  return (
+                    <option key={n} value={n}>
+                      {n}{member?.realName ? ` (${member.realName})` : ""}
+                    </option>
+                  );
+                })}
             </select>
           </div>
 
