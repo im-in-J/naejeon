@@ -332,6 +332,8 @@ def enrich_from_history(lock_info, match_data, game_id):
     bans = extract_bans(full)
     if bans:
         match_data["bans"] = bans
+    if full.get("gameCreation"):
+        match_data["gameCreation"] = full["gameCreation"]
     ident_map = {
         i.get("participantId"): (i.get("player", {}) or {})
         for i in full.get("participantIdentities", [])
@@ -423,7 +425,9 @@ def handle_end_of_game(lock_info, last_game_id):
     print("  📤 서버에 업로드 중...")
     result = upload_match(match_data)
     if result:
-        if result.get("duplicate"):
+        if result.get("updated"):
+            print("  🔄 기존 경기 갱신 완료 (날짜·스탯 덮어쓰기)")
+        elif result.get("duplicate"):
             print("  ℹ️  이미 등록된 게임입니다 (중복 업로드 방지)")
         else:
             print("  ✅ 업로드 성공!")
@@ -589,6 +593,7 @@ def format_history_match(game):
 
     return {
         "gameId": game.get("gameId"),
+        "gameCreation": game.get("gameCreation"),  # 실제 게임 시작 시각 (epoch ms)
         "gameDuration": format_duration(game.get("gameDuration", 0)),
         "players": players,
         "gameMode": game.get("gameMode", "CLASSIC"),
@@ -715,7 +720,10 @@ def history_mode():
 
         result = upload_match(match_data)
         if result:
-            if result.get("duplicate"):
+            if result.get("updated"):
+                print("       🔄 기존 경기 갱신 (날짜·스탯 덮어쓰기)")
+                success += 1
+            elif result.get("duplicate"):
                 print("       ℹ️  이미 등록된 게임 (건너뜀)")
             else:
                 print("       ✅ 업로드 성공!")

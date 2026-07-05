@@ -34,23 +34,24 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 같은 게임 중복 업로드 방지 (game_id 컬럼이 없는 구버전 DB면 조용히 건너뜀)
+    // 같은 게임이 이미 있으면 덮어쓰기 대상으로 기록 (game_id 컬럼 없는 구버전 DB면 조용히 건너뜀)
     const gameId = match.gameId != null ? String(match.gameId) : null;
+    let existingId: string | null = null;
     if (gameId) {
       const { data: dup, error: dupError } = await supabase
         .from("matches")
         .select("id")
         .eq("game_id", gameId)
         .limit(1);
-
-      if (!dupError && dup && dup.length > 0) {
-        return NextResponse.json({
-          success: true,
-          duplicate: true,
-          matchId: dup[0].id,
-        });
-      }
+      if (!dupError && dup && dup.length > 0) existingId = dup[0].id;
     }
+
+    // 실제 게임 시작 시각 (epoch ms) — 과거 경기가 업로드 시점 날짜로 기록되지 않도록
+    const creationMs = Number(match.gameCreation);
+    const gameCreation =
+      Number.isFinite(creationMs) && creationMs > 946684800000 // 2000-01-01 이후만 신뢰
+        ? new Date(creationMs).toISOString()
+        : null;
 
     // 부캐 닉네임 → 본캐 닉네임 매핑 (아이디 통합이 새 업로드에도 유지되도록)
     const { data: memberRows } = await supabase
@@ -63,8 +64,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build player stats
-    const matchId = uuid();
+    // Build player stats (덮어쓰기면 기존 매치 id 유지)
+    const matchId = existingId || uuid();
     const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => {
       const rawNickname = String(p.nickname || `Player${i + 1}`);
       return {
@@ -102,24 +103,32 @@ export async function POST(req: NextRequest) {
     const scored = calculateMvpScores(players);
 
     const row: Record<string, unknown> = {
-      id: matchId,
       group_name: "컴학내전",
       game_duration: match.gameDuration || "",
       game_mode: match.gameMode || "rift",
       players: scored,
     };
     if (gameId) row.game_id = gameId;
+    if (gameCreation) row.created_at = gameCreation;
     if (match.bans && (match.bans.blue?.length || match.bans.red?.length)) {
       row.bans = { blue: match.bans.blue || [], red: match.bans.red || [] };
     }
 
-    let { error: insertError } = await supabase.from("matches").insert(row);
+    const save = async () => {
+      if (existingId) {
+        // 이미 등록된 게임 → 날짜·스탯·밴 덮어쓰기
+        return supabase.from("matches").update(row).eq("id", matchId);
+      }
+      return supabase.from("matches").insert({ ...row, id: matchId });
+    };
+
+    let { error: insertError } = await save();
 
     // 마이그레이션 안 된 구버전 DB → 없는 컬럼 빼고 재시도
     for (const optionalCol of ["bans", "game_id"]) {
       if (insertError && optionalCol in row && insertError.message.includes(optionalCol)) {
         delete row[optionalCol];
-        ({ error: insertError } = await supabase.from("matches").insert(row));
+        ({ error: insertError } = await save());
       }
     }
 
@@ -142,11 +151,12 @@ export async function POST(req: NextRequest) {
       await supabase.from("members").upsert(newMembers, { onConflict: "nickname" });
     }
 
-    console.log(`Match uploaded: ${matchId}, ${scored.length} players, ${match.gameDuration}`);
+    console.log(`Match ${existingId ? "updated" : "uploaded"}: ${matchId}, ${scored.length} players, ${match.gameDuration}`);
 
     return NextResponse.json({
       success: true,
       matchId,
+      updated: !!existingId,
       players: scored.length,
       duration: match.gameDuration,
     });
