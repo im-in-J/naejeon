@@ -95,7 +95,12 @@ export function PlayerStatsTab({
                 <th className="text-center py-3 px-2">킬관여율</th>
                 <th className="text-center py-3 px-2">골드당 딜</th>
                 <th className="text-center py-3 px-2">MVP/ACE</th>
-                <th className="text-center py-3 px-2">점수</th>
+                <th
+                  className="text-center py-3 px-2 cursor-help"
+                  title="그룹 내 백분위 가중합 (0~100): 승률(판수 보정) 22% + KDA 18% + 킬관여 15% + 분당CS 10% + 시야 10% + 골드당 딜 10% + MVP/ACE 10% + 판수 5%"
+                >
+                  점수
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -78,7 +78,7 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
     }
   }
 
-  return Array.from(map.entries())
+  const results = Array.from(map.entries())
     .map(([nickname, stats]) => {
       const wins = stats.filter((s) => s.win).length;
       const losses = stats.length - wins;
@@ -162,8 +162,7 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
       const winRate = stats.length > 0 ? (wins / stats.length) * 100 : 0;
       const mvpCount = stats.filter((s) => s.isMvp).length;
       const aceCount = stats.filter((s) => s.isAce).length;
-      const totalScore =
-        avgKda * 15 + winRate * 0.8 + Math.log(stats.length + 1) * 8 + mvpCount * 5;
+      const totalScore = 0; // 아래에서 그룹 내 백분위 기반으로 재계산
 
       return {
         nickname,
@@ -213,8 +212,45 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
         laneStats,
         recentMatches,
       };
-    })
-    .sort((a, b) => b.totalScore - a.totalScore);
+    });
+
+  // ── 종합 점수: 성적 테이블 컬럼 기반, 그룹 내 백분위 가중합 (0~100) ──
+  // 승률(판수 보정) 22% + KDA 18% + 킬관여 15% + 분당CS 10% + 시야 10%
+  // + 골드당 딜 10% + MVP/ACE 10% + 판수 5%
+  const metrics = results.map((r) => ({
+    adjWinRate: ((r.wins + 2.5) / (r.gamesPlayed + 5)) * 100, // 라플라스 보정
+    kda: r.avgKda,
+    kp: r.avgKillParticipation,
+    cs: r.csPerMin,
+    vision: r.avgVision,
+    dpg: r.damagePerGold,
+    mvpAce: (r.mvpCount + r.aceCount * 0.5) / r.gamesPlayed,
+    games: r.gamesPlayed,
+  }));
+  const pools = {
+    adjWinRate: metrics.map((m) => m.adjWinRate),
+    kda: metrics.map((m) => m.kda),
+    kp: metrics.map((m) => m.kp),
+    cs: metrics.map((m) => m.cs),
+    vision: metrics.map((m) => m.vision),
+    dpg: metrics.map((m) => m.dpg),
+    mvpAce: metrics.map((m) => m.mvpAce),
+    games: metrics.map((m) => m.games),
+  };
+  results.forEach((r, i) => {
+    const m = metrics[i];
+    r.totalScore =
+      percentileOf(pools.adjWinRate, m.adjWinRate) * 0.22 +
+      percentileOf(pools.kda, m.kda) * 0.18 +
+      percentileOf(pools.kp, m.kp) * 0.15 +
+      percentileOf(pools.cs, m.cs) * 0.1 +
+      percentileOf(pools.vision, m.vision) * 0.1 +
+      percentileOf(pools.dpg, m.dpg) * 0.1 +
+      percentileOf(pools.mvpAce, m.mvpAce) * 0.1 +
+      percentileOf(pools.games, m.games) * 0.05;
+  });
+
+  return results.sort((a, b) => b.totalScore - a.totalScore);
 }
 
 // ─── Radar Stats (5각 스탯) ───
