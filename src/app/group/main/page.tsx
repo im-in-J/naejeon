@@ -149,64 +149,59 @@ export default function MainGroupPage() {
       <Modal open={showManual} onClose={() => setShowManual(false)} title="수집기 사용법" className="max-w-2xl">
         <div className="space-y-5 text-sm text-ink-muted">
           <div>
-            <h3 className="text-ink font-semibold mb-2">설치</h3>
+            <h3 className="text-ink font-semibold mb-2">1단계: 준비</h3>
             <ol className="list-decimal list-inside space-y-1.5">
-              <li>Python 3.8 이상 설치 — <a href="https://python.org/downloads" target="_blank" className="text-primary hover:text-primary-hover underline">python.org/downloads</a></li>
-              <li>상단 <span className="text-ink font-medium">수집기</span> 버튼 클릭 → <code className="text-xs bg-surface-2 px-1.5 py-0.5 rounded">naejeon-collector.py</code> 다운로드</li>
-              <li>서버 URL이 자동으로 설정되어 있어 바로 사용 가능</li>
+              <li>Python 설치 — <a href="https://python.org/downloads" target="_blank" className="text-primary hover:text-primary-hover underline">python.org/downloads</a> (설치 시 <span className="text-ink font-medium">&quot;Add to PATH&quot; 반드시 체크</span>)</li>
+              <li>상단 <span className="text-ink font-medium">수집기</span> 버튼 클릭 → ZIP 파일 다운로드</li>
+              <li>압축 풀기 → 2개 파일 확인: <code className="text-xs bg-surface-2 px-1.5 py-0.5 rounded">내전수집기.bat</code>, <code className="text-xs bg-surface-2 px-1.5 py-0.5 rounded">naejeon-collector.py</code></li>
             </ol>
           </div>
 
           <div>
-            <h3 className="text-ink font-semibold mb-2">실시간 자동 수집</h3>
-            <div className="bg-surface-2 rounded-lg px-4 py-3 font-mono text-xs text-ink">
-              python naejeon-collector.py
+            <h3 className="text-ink font-semibold mb-2">2단계: 실행</h3>
+            <p className="mb-2"><span className="text-ink font-medium">내전수집기.bat</span> 더블클릭하면 메뉴가 나옵니다:</p>
+            <div className="bg-surface-2 rounded-lg px-4 py-3 text-xs text-ink font-mono space-y-0.5">
+              <p>==========================================</p>
+              <p>&nbsp; 컴학내전 데이터 수집기</p>
+              <p>==========================================</p>
+              <p>&nbsp;</p>
+              <p>&nbsp; 1. 실시간 수집 (게임 끝나면 자동 업로드)</p>
+              <p>&nbsp; 2. 과거 경기 가져오기</p>
+              <p>&nbsp; 3. 종료</p>
+              <p>&nbsp;</p>
+              <p>&nbsp; 선택 (1/2/3): _</p>
             </div>
-            <ul className="list-disc list-inside space-y-1 mt-2">
-              <li>롤 클라이언트가 켜져있으면 자동 감지</li>
-              <li>게임 끝나면 자동으로 데이터 추출 & 업로드</li>
-              <li>딜량, 피해량, 시야점수 등 모든 상세 스탯 포함</li>
-              <li>내전 참여자 중 1명만 실행하면 됨</li>
-              <li>롤 켜놓고 백그라운드에서 계속 돌려두세요</li>
-            </ul>
           </div>
 
           <div>
-            <h3 className="text-ink font-semibold mb-2">과거 경기 가져오기</h3>
-            <div className="bg-surface-2 rounded-lg px-4 py-3 font-mono text-xs text-ink">
-              python naejeon-collector.py --history
+            <h3 className="text-ink font-semibold mb-2">메뉴 설명</h3>
+            <div className="space-y-3">
+              <div className="bg-surface-2/50 rounded-lg px-4 py-3">
+                <p className="text-ink font-medium text-xs mb-1">1번: 실시간 수집</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs">
+                  <li>롤 클라이언트 자동 감지</li>
+                  <li>게임 끝나면 자동 업로드 (딜량, 시야 등 전부)</li>
+                  <li>내전 할 때 켜두면 됨</li>
+                </ul>
+              </div>
+              <div className="bg-surface-2/50 rounded-lg px-4 py-3">
+                <p className="text-ink font-medium text-xs mb-1">2번: 과거 경기 가져오기</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs">
+                  <li>최근 200경기 중 커스텀 게임 목록 표시</li>
+                  <li>원하는 경기 번호 입력 → 업로드</li>
+                  <li>예: <code className="bg-surface-2 px-1 rounded">1,3,5</code> 또는 <code className="bg-surface-2 px-1 rounded">1-5</code> 또는 <code className="bg-surface-2 px-1 rounded">all</code></li>
+                </ul>
+              </div>
             </div>
-            <ul className="list-disc list-inside space-y-1 mt-2">
-              <li>롤 클라이언트에서 최근 200경기 중 커스텀 게임 조회</li>
-              <li>날짜, 팀 구성, 승패 미리보기 표시</li>
-              <li>원하는 경기 번호 선택해서 업로드</li>
-              <li className="text-ink-tertiary">
-                입력 예시: <code className="bg-surface-2 px-1 rounded">1,3,5</code> (개별)
-                <code className="bg-surface-2 px-1 rounded ml-1">1-5</code> (범위)
-                <code className="bg-surface-2 px-1 rounded ml-1">all</code> (전체)
-              </li>
-            </ul>
           </div>
 
           <div className="border-t border-hairline pt-4">
-            <h3 className="text-ink font-semibold mb-2">FAQ</h3>
-            <div className="space-y-2.5">
-              <div>
-                <p className="text-ink text-xs font-medium">Q. 롤 경로가 기본이 아닌 경우?</p>
-                <div className="bg-surface-2 rounded-lg px-4 py-2 font-mono text-xs text-ink mt-1">
-                  set LOL_PATH=D:\Games\League of Legends<br/>
-                  python naejeon-collector.py
-                </div>
-              </div>
-              <div>
-                <p className="text-ink text-xs font-medium">Q. 업로드 실패 시?</p>
-                <p className="text-xs">로컬에 <code className="bg-surface-2 px-1 rounded">match_backup_*.json</code> 파일로 백업됩니다. 나중에 수동 등록으로 입력하세요.</p>
-              </div>
-              <div>
-                <p className="text-ink text-xs font-medium">Q. 여러 명이 동시에 수집기를 돌리면?</p>
-                <p className="text-xs">같은 경기가 중복 등록될 수 있으니, 1명만 돌리는 걸 권장합니다.</p>
-              </div>
-            </div>
+            <h3 className="text-ink font-semibold mb-2">주의사항</h3>
+            <ul className="list-disc list-inside space-y-1 text-xs">
+              <li>롤 클라이언트가 켜져있어야 합니다</li>
+              <li>내전 참여자 중 <span className="text-ink font-medium">1명만</span> 실행하면 됩니다 (중복 방지)</li>
+              <li>업로드 실패 시 로컬에 백업 파일이 저장됩니다</li>
+            </ul>
           </div>
         </div>
       </Modal>
