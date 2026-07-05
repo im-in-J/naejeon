@@ -11,9 +11,11 @@
 import json
 import time
 import os
+import re
 import sys
 import ssl
 import base64
+import subprocess
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -50,6 +52,39 @@ def find_lockfile():
         if os.path.exists(path):
             return path
     return None
+
+
+def find_credentials_from_process():
+    """실행 중인 롤 클라이언트 프로세스에서 접속 정보 추출
+    (설치 경로가 어디든 동작 — lockfile을 못 찾을 때의 폴백)"""
+    try:
+        out = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                "Get-CimInstance Win32_Process -Filter \"Name='LeagueClientUx.exe'\""
+                " | ForEach-Object { $_.CommandLine }",
+            ],
+            capture_output=True,
+            timeout=20,
+        ).stdout.decode("utf-8", errors="ignore")
+    except Exception:
+        return None
+
+    port = re.search(r"--app-port=(\d+)", out)
+    token = re.search(r"--remoting-auth-token=([\w-]+)", out)
+    if port and token:
+        return {"port": port.group(1), "password": token.group(1), "protocol": "https"}
+    return None
+
+
+def get_credentials():
+    """LCU 접속 정보: lockfile 우선, 실패 시 프로세스에서 추출"""
+    path = find_lockfile()
+    if path:
+        info = parse_lockfile(path)
+        if info:
+            return info
+    return find_credentials_from_process()
 
 
 def parse_lockfile(path):
@@ -333,16 +368,11 @@ def main():
     last_phase = "__init__"
 
     while True:
-        # 1. lockfile 찾기
-        lockfile_path = find_lockfile()
-        if not lockfile_path:
-            print("  롤 클라이언트를 찾는 중...")
-            client_found = False
-            time.sleep(POLL_INTERVAL)
-            continue
-
-        lock_info = parse_lockfile(lockfile_path)
+        # 1. 클라이언트 접속 정보 찾기 (lockfile → 프로세스 순)
+        lock_info = get_credentials()
         if not lock_info:
+            print("  롤 클라이언트를 찾는 중... (로그인된 롤 클라이언트가 켜져 있어야 합니다)")
+            client_found = False
             time.sleep(POLL_INTERVAL)
             continue
 
@@ -507,14 +537,10 @@ def history_mode():
     print("  컴학내전 — 과거 경기 가져오기")
     print("=" * 50)
 
-    lockfile_path = find_lockfile()
-    if not lockfile_path:
-        print("  ❌ 롤 클라이언트를 찾을 수 없습니다. 클라이언트를 먼저 실행해주세요.")
-        return
-
-    lock_info = parse_lockfile(lockfile_path)
+    lock_info = get_credentials()
     if not lock_info:
-        print("  ❌ lockfile 파싱 실패")
+        print("  ❌ 롤 클라이언트를 찾을 수 없습니다.")
+        print("     리엇 런처 말고, 로그인 후 뜨는 롤 클라이언트(로비 화면)가 켜져 있어야 합니다.")
         return
 
     print("  클라이언트 감지 완료. 매치 히스토리 조회 중...")
