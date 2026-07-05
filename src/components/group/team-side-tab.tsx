@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buildTeamSideStats, type PlayerTeamSide, type ChampionTeamSide, type DuoRecord, type TeamSideOverall } from "@/lib/stats";
+import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Group } from "@/lib/types";
 
 type SubTab = "overview" | "players" | "champions" | "duos";
@@ -250,9 +251,7 @@ function ChampionsSection({ champions }: { champions: ChampionTeamSide[] }) {
                 <tr key={c.champion} className="border-b border-hairline/30 hover:bg-surface-1 transition-fast">
                   <td className="py-2.5 px-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-xs font-semibold text-ink-subtle">
-                        {c.champion.charAt(0)}
-                      </div>
+                      <ChampionIcon name={c.champion} size={28} />
                       <div>
                         <span className="font-medium text-ink">{c.champion}</span>
                         <span className="text-xs text-ink-tertiary ml-1.5">{c.total.games}판</span>

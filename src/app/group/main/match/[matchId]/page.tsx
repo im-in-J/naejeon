@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Trophy, Flame, Shield, Eye, Clock, Swords, Edit3, Save, Trash2 } from "lucide-react";
+import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Match, PlayerStat, Member } from "@/lib/types";
 
 const LANE_EMOJI: Record<string, string> = {
@@ -244,9 +245,7 @@ function TeamSection({ team, players, win, maxDamage, maxTaken, maxGold, getReal
             <div key={p.id} className="px-4 py-3 hover:bg-surface-1/30 transition-fast">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg bg-surface-2 flex items-center justify-center text-sm font-bold text-ink-subtle shrink-0">
-                    {p.champion ? p.champion.charAt(0) : "?"}
-                  </div>
+                  <ChampionIcon name={p.champion || "?"} size={36} className="rounded-lg" />
                   <div>
                     <div className="flex items-center gap-1.5">
                       {editing ? (

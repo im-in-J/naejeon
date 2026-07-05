@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Search } from "lucide-react";
+import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { ChampionStats } from "@/lib/stats";
 
 type ViewMode = "tierlist" | "table";
@@ -121,9 +122,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                       onClick={() => setSelected(champ)}
                       className="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-surface-1 hover:bg-surface-2 border border-hairline hover:border-hairline-strong transition-fast cursor-pointer min-w-[160px]"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-surface-3 flex items-center justify-center text-base font-bold text-ink-subtle shrink-0">
-                        {champ.champion.charAt(0)}
-                      </div>
+                      <ChampionIcon name={champ.champion} size={40} className="rounded-lg" />
                       <div className="text-left flex-1 min-w-0">
                         <div className="text-sm font-semibold text-ink truncate">{champ.champion}</div>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -176,9 +175,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-xs font-semibold text-ink-subtle">
-                              {champ.champion.charAt(0)}
-                            </div>
+                            <ChampionIcon name={champ.champion} size={28} />
                             <span className="font-medium text-ink">{champ.champion}</span>
                           </div>
                         </td>
@@ -286,9 +283,7 @@ function ChampionDetail({ champ }: { champ: ChampionStats }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-surface-2 flex items-center justify-center text-xl font-bold text-ink-subtle">
-          {champ.champion.charAt(0)}
-        </div>
+        <ChampionIcon name={champ.champion} size={48} className="rounded-lg" />
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold text-ink">{champ.champion}</span>

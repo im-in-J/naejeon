@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Trash2, Gamepad2, Clock, Trophy, Download } from "lucide-react";
+import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Match } from "@/lib/types";
 
 const LANE_EMOJI: Record<string, string> = {
@@ -229,7 +230,7 @@ function PlayerRow({
 
   if (align === "right") {
     return (
-      <div className="flex items-center gap-2 justify-end text-[13px] py-0.5">
+      <div className="flex items-center gap-1.5 justify-end text-[13px] py-0.5">
         <span className={`font-mono text-xs tabular-nums ${kdaColor}`}>
           <span className="text-ink-muted">{player.kills}</span>
           <span className="text-ink-tertiary">/</span>
@@ -240,16 +241,14 @@ function PlayerRow({
         <span className={`font-semibold truncate max-w-[90px] ${isMvp ? "text-mvp" : isAce ? "text-ace" : "text-ink"}`}>
           {player.nickname}
         </span>
-        <span className="text-ink-tertiary text-xs truncate max-w-[60px]">{player.champion}</span>
-        {lane && <span className="text-xs">{lane}</span>}
+        <ChampionIcon name={player.champion} size={18} />
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-[13px] py-0.5">
-      {lane && <span className="text-xs">{lane}</span>}
-      <span className="text-ink-tertiary text-xs truncate max-w-[60px]">{player.champion}</span>
+    <div className="flex items-center gap-1.5 text-[13px] py-0.5">
+      <ChampionIcon name={player.champion} size={18} />
       <span className={`font-semibold truncate max-w-[90px] ${isMvp ? "text-mvp" : isAce ? "text-ace" : "text-ink"}`}>
         {player.nickname}
       </span>
