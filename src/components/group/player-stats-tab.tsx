@@ -9,7 +9,7 @@ import type { PlayerStats, Award } from "@/lib/stats";
 
 type SortKey =
   | "totalScore" | "winRate" | "avgKda" | "csPerMin" | "avgVision"
-  | "avgKillParticipation" | "mvpCount" | "gamesPlayed";
+  | "avgKillParticipation" | "damagePerGold" | "mvpCount" | "gamesPlayed";
 
 const MULTIKILL_LABEL: Record<number, string> = {
   2: "더블킬", 3: "트리플킬", 4: "쿼드라킬", 5: "펜타킬",
@@ -62,6 +62,7 @@ export function PlayerStatsTab({
           ["csPerMin", "분당 CS"],
           ["avgVision", "시야"],
           ["avgKillParticipation", "킬관여"],
+          ["damagePerGold", "골드당 딜"],
           ["mvpCount", "MVP"],
         ] as [SortKey, string][]).map(([key, label]) => (
           <button
@@ -92,6 +93,7 @@ export function PlayerStatsTab({
                 <th className="text-center py-3 px-2">분당 CS</th>
                 <th className="text-center py-3 px-2">시야점수</th>
                 <th className="text-center py-3 px-2">킬관여율</th>
+                <th className="text-center py-3 px-2">골드당 딜</th>
                 <th className="text-center py-3 px-2">MVP/ACE</th>
                 <th className="text-center py-3 px-2">점수</th>
               </tr>
@@ -134,6 +136,15 @@ export function PlayerStatsTab({
                     <span className={entry.avgKillParticipation >= 60 ? "text-win font-semibold" : "text-text-secondary"}>
                       {entry.avgKillParticipation.toFixed(0)}%
                     </span>
+                  </td>
+                  <td className="text-center py-3 px-2">
+                    {entry.damagePerGold > 0 ? (
+                      <span className={entry.damagePerGold >= 1.5 ? "text-win font-semibold" : "text-text-secondary"}>
+                        {entry.damagePerGold.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">-</span>
+                    )}
                   </td>
                   <td className="text-center py-3 px-2">
                     <div className="flex items-center justify-center gap-1">
@@ -184,8 +195,9 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
         <MiniStat label="킬관여율" value={`${player.avgKillParticipation.toFixed(0)}%`} color={player.avgKillParticipation >= 60 ? "text-win" : undefined} />
       </div>
 
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-5 gap-3">
         <MiniStat label="시야점수" value={player.avgVision.toFixed(1)} />
+        <MiniStat label="골드당 딜" value={player.damagePerGold > 0 ? player.damagePerGold.toFixed(2) : "-"} color={player.damagePerGold >= 1.5 ? "text-win" : undefined} />
         <MiniStat label="평균 포탑딜" value={player.avgTurretDamage > 0 ? Math.round(player.avgTurretDamage).toLocaleString() : "-"} />
         <MiniStat label="선취점" value={player.firstBloodCount > 0 ? `${player.firstBloodCount}회` : "-"} />
         <MiniStat

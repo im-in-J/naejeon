@@ -23,6 +23,7 @@ export interface PlayerStats {
   csPerMin: number;
   avgKillParticipation: number; // 0~100
   goldPerMin: number;
+  damagePerGold: number; // 골드당 챔피언 딜량 (총딜 ÷ 총골드)
   avgTurretDamage: number;
   avgCcScore: number;
   firstBloodCount: number;
@@ -195,6 +196,11 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
           const totalMinutes = minutesMap.get(nickname) || 0;
           const totalGold = stats.reduce((s, p) => s + p.gold, 0);
           return totalMinutes > 0 ? totalGold / totalMinutes : 0;
+        })(),
+        damagePerGold: (() => {
+          const totalGold = stats.reduce((s, p) => s + p.gold, 0);
+          const totalDamage = stats.reduce((s, p) => s + (p.damageDealt || 0), 0);
+          return totalGold > 0 ? totalDamage / totalGold : 0;
         })(),
         avgTurretDamage: stats.reduce((s, p) => s + (p.turretDamage || 0), 0) / stats.length,
         avgCcScore: stats.reduce((s, p) => s + (p.ccScore || 0), 0) / stats.length,
