@@ -272,7 +272,7 @@ export function PlayerInfoTab({
                   <RadarChart
                     size={210}
                     axes={[
-                      { label: "골드차이", value: player.radar.goldDiff, hint: "상대팀 평균 대비 분당 골드 차이" },
+                      { label: "골드차이", value: player.radar.goldDiff, hint: "같은 포지션 상대 대비 분당 골드 차이 (포지션 미상이면 상대팀 평균)" },
                       { label: "전투", value: player.radar.combat, hint: "분당 딜량 + 킬관여" },
                       { label: "성장", value: player.radar.growth, hint: "분당 CS + 분당 골드" },
                       { label: "시야", value: player.radar.vision, hint: "분당 시야점수" },

@@ -175,8 +175,8 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
 }
 
 // ─── Radar Stats (5각 스탯) ───
-// 각 축은 그룹 내 백분위(0~100). 15분 시점 데이터가 없어 골드차이는
-// 게임 전체 기준 "상대팀 평균 대비 분당 골드 차이"로 계산.
+// 각 축은 그룹 내 백분위(0~100). 골드차이는 같은 포지션 상대와의
+// 분당 골드 차이 (포지션 정보가 없으면 상대팀 평균 대비로 폴백).
 
 export interface RadarStats {
   nickname: string;
@@ -217,8 +217,11 @@ export function buildRadarStats(group: Group): Map<string, RadarStats> {
       const teammates = match.players.filter((q) => q.team === p.team);
       const enemies = match.players.filter((q) => q.team !== p.team);
       const teamKills = teammates.reduce((s, q) => s + q.kills, 0);
-      const enemyAvgGold = enemies.length > 0
-        ? enemies.reduce((s, q) => s + q.gold, 0) / enemies.length
+      // 맞라인 상대 우선, 없으면 상대팀 평균
+      const laneOpponents = p.lane ? enemies.filter((q) => q.lane === p.lane) : [];
+      const refPool = laneOpponents.length > 0 ? laneOpponents : enemies;
+      const enemyAvgGold = refPool.length > 0
+        ? refPool.reduce((s, q) => s + q.gold, 0) / refPool.length
         : p.gold;
 
       const raw = rawMap.get(p.nickname) || { dpm: [], kp: [], cspm: [], gpm: [], vspm: [], deathsPm: [], goldDiffPm: [] };

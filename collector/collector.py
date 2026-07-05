@@ -188,6 +188,22 @@ def champion_id_to_name(champion_id):
         return str(champion_id)
 
 
+def lane_from_timeline(participant):
+    """매치 상세의 timeline에서 포지션 추출 (top/jungle/mid/adc/support, 불명이면 None)"""
+    tl = participant.get("timeline", {}) or {}
+    lane = tl.get("lane", "")
+    role = tl.get("role", "")
+    if lane == "TOP":
+        return "top"
+    if lane == "JUNGLE":
+        return "jungle"
+    if lane in ("MIDDLE", "MID"):
+        return "mid"
+    if lane in ("BOTTOM", "BOT"):
+        return "support" if role == "DUO_SUPPORT" else "adc"
+    return None
+
+
 def format_duration(total_seconds):
     minutes = int(total_seconds) // 60
     seconds = int(total_seconds) % 60
@@ -290,6 +306,32 @@ def print_match_summary(match_data):
     print(f"  {'🔴 승' if not blue_win else '🔴 패'}: {', '.join(p['champion'] for p in red)}")
 
 
+def enrich_lanes_from_history(lock_info, match_data, game_id):
+    """EOG 데이터에는 포지션이 없어서, 매치 히스토리 상세에서 라인 정보를 보강.
+    게임 직후라 히스토리에 아직 없을 수 있음 — 실패해도 무시 (서버가 폴백 처리)"""
+    full = get_full_game(lock_info, game_id)
+    if not full:
+        return
+    ident_map = {
+        i.get("participantId"): (i.get("player", {}) or {})
+        for i in full.get("participantIdentities", [])
+    }
+    lane_by_name = {}
+    for p in full.get("participants", []):
+        info = ident_map.get(p.get("participantId"), {})
+        name = (
+            info.get("summonerName")
+            or info.get("gameName")
+            or info.get("riotIdGameName")
+        )
+        lane = lane_from_timeline(p)
+        if name and lane:
+            lane_by_name[name] = lane
+    for mp in match_data["players"]:
+        if mp["nickname"] in lane_by_name:
+            mp["lane"] = lane_by_name[mp["nickname"]]
+
+
 def handle_end_of_game(lock_info, last_game_id):
     """게임 종료 처리. 처리한 game_id를 반환 (처리 실패/스킵 시 last_game_id 그대로)"""
     # EOG 데이터가 준비될 때까지 재시도
@@ -335,6 +377,12 @@ def handle_end_of_game(lock_info, last_game_id):
             print(f"    플레이어 키: {list(p.keys())}")
 
     print_match_summary(match_data)
+
+    # 포지션 정보 보강 (골드차이 스탯용)
+    try:
+        enrich_lanes_from_history(lock_info, match_data, game_id)
+    except Exception:
+        pass
 
     # 업로드
     print("  📤 서버에 업로드 중...")
@@ -481,6 +529,7 @@ def format_history_match(game):
         player = {
             "nickname": id_map.get(pid, f"Player{pid}"),
             "champion": champion_id_to_name(p.get("championId")),
+            "lane": lane_from_timeline(p),
             "team": team_side,
             "win": stats.get("win", False),
             "kills": stats.get("kills", 0),
