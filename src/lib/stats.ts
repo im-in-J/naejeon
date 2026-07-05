@@ -323,6 +323,8 @@ export interface ChampionStats {
   avgCs: number;
   avgGold: number;
   avgDamage: number;
+  banCount: number;
+  banRate: number; // 밴 정보가 있는 경기 대비 %
   players: { nickname: string; games: number; wins: number; winRate: number }[];
 }
 
@@ -337,6 +339,45 @@ export function buildChampionStats(group: Group): ChampionStats[] {
       map.set(p.champion, arr);
     }
   }
+
+  // 밴 집계 (밴 정보가 있는 경기만 모수로 사용)
+  const banCountMap = new Map<string, number>();
+  let matchesWithBans = 0;
+  for (const match of group.matches) {
+    if (!match.bans) continue;
+    matchesWithBans++;
+    for (const side of ["blue", "red"] as const) {
+      for (const champ of match.bans[side] || []) {
+        banCountMap.set(champ, (banCountMap.get(champ) || 0) + 1);
+      }
+    }
+  }
+  const banRateOf = (champion: string) => {
+    const count = banCountMap.get(champion) || 0;
+    return {
+      banCount: count,
+      banRate: matchesWithBans > 0 ? (count / matchesWithBans) * 100 : 0,
+    };
+  };
+
+  // 밴만 당하고 픽된 적 없는 챔피언도 목록에 포함
+  const banOnly: ChampionStats[] = Array.from(banCountMap.keys())
+    .filter((champ) => !map.has(champ))
+    .map((champ) => ({
+      champion: champ,
+      totalGames: 0,
+      wins: 0,
+      winRate: 0,
+      avgKda: 0,
+      avgKills: 0,
+      avgDeaths: 0,
+      avgAssists: 0,
+      avgCs: 0,
+      avgGold: 0,
+      avgDamage: 0,
+      ...banRateOf(champ),
+      players: [],
+    }));
 
   return Array.from(map.entries())
     .map(([champion, stats]) => {
@@ -376,9 +417,11 @@ export function buildChampionStats(group: Group): ChampionStats[] {
         avgCs: stats.reduce((s, p) => s + p.cs, 0) / stats.length,
         avgGold: stats.reduce((s, p) => s + p.gold, 0) / stats.length,
         avgDamage: stats.reduce((s, p) => s + (p.damageDealt || 0), 0) / stats.length,
+        ...banRateOf(champion),
         players,
       };
     })
+    .concat(banOnly)
     .sort((a, b) => b.totalGames - a.totalGames);
 }
 

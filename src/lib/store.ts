@@ -22,6 +22,7 @@ export async function getAllMatches(): Promise<Match[]> {
     createdAt: row.created_at,
     gameDuration: row.game_duration || "",
     players: row.players as PlayerStat[],
+    bans: (row.bans as Match["bans"]) || undefined,
   }));
 }
 
@@ -40,6 +41,7 @@ export async function getMatch(matchId: string): Promise<Match | null> {
     createdAt: data.created_at,
     gameDuration: data.game_duration || "",
     players: data.players as PlayerStat[],
+    bans: (data.bans as Match["bans"]) || undefined,
   };
 }
 

@@ -26,6 +26,7 @@ export interface Match {
   createdAt: string;
   gameDuration: string;
   players: PlayerStat[];
+  bans?: { blue: string[]; red: string[] }; // 밴 챔피언 (드래프트 모드만, 밴 순서대로)
 }
 
 export interface PlayerStat {

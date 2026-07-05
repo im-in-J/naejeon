@@ -204,6 +204,19 @@ def lane_from_timeline(participant):
     return None
 
 
+def extract_bans(game):
+    """매치 상세의 teams[].bans에서 밴 챔피언 추출 (드래프트 모드만 존재)"""
+    bans = {"blue": [], "red": []}
+    for team in game.get("teams", []):
+        side = "blue" if team.get("teamId", 100) == 100 else "red"
+        team_bans = sorted(team.get("bans", []) or [], key=lambda b: b.get("pickTurn", 0))
+        for b in team_bans:
+            cid = b.get("championId", -1)
+            if cid and cid != -1:  # -1 = 밴 안 함
+                bans[side].append(champion_id_to_name(cid))
+    return bans if (bans["blue"] or bans["red"]) else None
+
+
 def format_duration(total_seconds):
     minutes = int(total_seconds) // 60
     seconds = int(total_seconds) % 60
@@ -316,6 +329,9 @@ def enrich_from_history(lock_info, match_data, game_id):
     full = get_full_game(lock_info, game_id)
     if not full:
         return
+    bans = extract_bans(full)
+    if bans:
+        match_data["bans"] = bans
     ident_map = {
         i.get("participantId"): (i.get("player", {}) or {})
         for i in full.get("participantIdentities", [])
@@ -576,6 +592,7 @@ def format_history_match(game):
         "gameDuration": format_duration(game.get("gameDuration", 0)),
         "players": players,
         "gameMode": game.get("gameMode", "CLASSIC"),
+        "bans": extract_bans(game),
     }
 
 

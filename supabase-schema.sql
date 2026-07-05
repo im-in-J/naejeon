@@ -9,11 +9,13 @@ CREATE TABLE matches (
   game_duration TEXT,
   game_mode TEXT DEFAULT 'rift',
   game_id TEXT UNIQUE, -- 롤 클라이언트 gameId (수집기 중복 업로드 방지, 수동 입력은 NULL)
+  bans JSONB, -- 밴 챔피언 {"blue": [...], "red": [...]} (드래프트 모드만)
   players JSONB NOT NULL
 );
 
 -- ── 기존 DB 마이그레이션 (이미 테이블이 있으면 아래만 실행) ──
 -- ALTER TABLE matches ADD COLUMN IF NOT EXISTS game_id TEXT UNIQUE;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS bans JSONB;
 
 -- 멤버 테이블 (선수 정보)
 CREATE TABLE members (

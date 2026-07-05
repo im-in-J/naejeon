@@ -109,13 +109,18 @@ export async function POST(req: NextRequest) {
       players: scored,
     };
     if (gameId) row.game_id = gameId;
+    if (match.bans && (match.bans.blue?.length || match.bans.red?.length)) {
+      row.bans = { blue: match.bans.blue || [], red: match.bans.red || [] };
+    }
 
     let { error: insertError } = await supabase.from("matches").insert(row);
 
-    // game_id 컬럼이 없는 구버전 DB → 컬럼 빼고 재시도
-    if (insertError && gameId && /game_id/.test(insertError.message)) {
-      delete row.game_id;
-      ({ error: insertError } = await supabase.from("matches").insert(row));
+    // 마이그레이션 안 된 구버전 DB → 없는 컬럼 빼고 재시도
+    for (const optionalCol of ["bans", "game_id"]) {
+      if (insertError && optionalCol in row && insertError.message.includes(optionalCol)) {
+        delete row[optionalCol];
+        ({ error: insertError } = await supabase.from("matches").insert(row));
+      }
     }
 
     if (insertError) {

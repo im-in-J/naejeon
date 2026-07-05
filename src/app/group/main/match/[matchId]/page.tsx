@@ -172,6 +172,33 @@ export default function MatchDetailPage() {
             </div>
           </div>
 
+          {match.bans && (match.bans.blue.length > 0 || match.bans.red.length > 0) && (
+            <div className="flex items-center justify-center gap-6 mt-5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-blue-400/70 uppercase">밴</span>
+                {match.bans.blue.map((champ, i) => (
+                  <div key={`${champ}-${i}`} className="relative" title={champ}>
+                    <ChampionIcon name={champ} size={24} className="grayscale opacity-70" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-full h-px bg-lose rotate-45" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {match.bans.red.map((champ, i) => (
+                  <div key={`${champ}-${i}`} className="relative" title={champ}>
+                    <ChampionIcon name={champ} size={24} className="grayscale opacity-70" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-full h-px bg-lose rotate-45" />
+                    </div>
+                  </div>
+                ))}
+                <span className="text-[10px] font-bold text-red-400/70 uppercase">밴</span>
+              </div>
+            </div>
+          )}
+
           {(mvp || ace) && (
             <div className="flex items-center justify-center gap-3 mt-5">
               {mvp && (

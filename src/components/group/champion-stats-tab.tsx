@@ -65,7 +65,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
     return TIERS.map((tier) => ({
       ...tier,
       champions: filtered
-        .filter((c) => getChampTier(c).tier === tier.tier)
+        .filter((c) => c.totalGames > 0 && getChampTier(c).tier === tier.tier)
         .sort((a, b) => getRankScore(b) - getRankScore(a)),
     }));
   }, [filtered]);
@@ -163,13 +163,17 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                   <th className="text-center py-2.5 px-2">KDA</th>
                   <th className="text-center py-2.5 px-2">K/D/A</th>
                   <th className="text-center py-2.5 px-2">CS</th>
+                  <th className="text-center py-2.5 px-2">밴</th>
                   <th className="text-left py-2.5 px-2">플레이어</th>
                 </tr>
               </thead>
               <tbody>
                 {[...filtered]
                   .sort((a, b) => {
-                    // 티어 높은순 → 같은 티어 안에서는 판수 보정 승률순
+                    // 픽 기록 있는 챔피언 먼저 → 티어 높은순 → 같은 티어 안에서는 판수 보정 승률순
+                    const pickDiff = (a.totalGames > 0 ? 0 : 1) - (b.totalGames > 0 ? 0 : 1);
+                    if (pickDiff !== 0) return pickDiff;
+                    if (a.totalGames === 0) return b.banCount - a.banCount;
                     const tierDiff =
                       TIERS.findIndex((t) => t.tier === getChampTier(a).tier) -
                       TIERS.findIndex((t) => t.tier === getChampTier(b).tier);
@@ -177,6 +181,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                   })
                   .map((champ) => {
                     const tier = getChampTier(champ);
+                    const banOnly = champ.totalGames === 0;
                     return (
                       <tr
                         key={champ.champion}
@@ -184,7 +189,11 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                         onClick={() => setSelected(champ)}
                       >
                         <td className="text-center py-2.5 px-3">
-                          <span className={`text-sm font-bold ${tier.color}`}>{tier.tier}</span>
+                          {banOnly ? (
+                            <span className="text-xs text-ink-tertiary">-</span>
+                          ) : (
+                            <span className={`text-sm font-bold ${tier.color}`}>{tier.tier}</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
@@ -193,23 +202,41 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                           </div>
                         </td>
                         <td className="text-center py-2.5 px-2 text-ink-muted">
-                          {champ.totalGames}
+                          {banOnly ? "-" : champ.totalGames}
                         </td>
                         <td className="text-center py-2.5 px-2">
-                          <span className={`font-semibold ${champ.winRate >= 55 ? "text-win" : champ.winRate < 45 ? "text-lose" : "text-ink"}`}>
-                            {champ.winRate.toFixed(0)}%
-                          </span>
+                          {banOnly ? (
+                            <span className="text-ink-tertiary">-</span>
+                          ) : (
+                            <span className={`font-semibold ${champ.winRate >= 55 ? "text-win" : champ.winRate < 45 ? "text-lose" : "text-ink"}`}>
+                              {champ.winRate.toFixed(0)}%
+                            </span>
+                          )}
                         </td>
                         <td className="text-center py-2.5 px-2">
-                          <span className={champ.avgKda >= 3.5 ? "text-win" : champ.avgKda < 2 ? "text-lose" : "text-ink"}>
-                            {champ.avgKda.toFixed(2)}
-                          </span>
+                          {banOnly ? (
+                            <span className="text-ink-tertiary">-</span>
+                          ) : (
+                            <span className={champ.avgKda >= 3.5 ? "text-win" : champ.avgKda < 2 ? "text-lose" : "text-ink"}>
+                              {champ.avgKda.toFixed(2)}
+                            </span>
+                          )}
                         </td>
                         <td className="text-center py-2.5 px-2 text-ink-muted text-xs font-mono">
-                          {champ.avgKills.toFixed(1)}/{champ.avgDeaths.toFixed(1)}/{champ.avgAssists.toFixed(1)}
+                          {banOnly ? "-" : `${champ.avgKills.toFixed(1)}/${champ.avgDeaths.toFixed(1)}/${champ.avgAssists.toFixed(1)}`}
                         </td>
                         <td className="text-center py-2.5 px-2 text-ink-muted">
-                          {Math.round(champ.avgCs)}
+                          {banOnly ? "-" : Math.round(champ.avgCs)}
+                        </td>
+                        <td className="text-center py-2.5 px-2">
+                          {champ.banCount > 0 ? (
+                            <span className="text-xs">
+                              <span className="text-lose font-semibold">{champ.banCount}회</span>
+                              <span className="text-ink-tertiary ml-1">({champ.banRate.toFixed(0)}%)</span>
+                            </span>
+                          ) : (
+                            <span className="text-ink-tertiary text-xs">-</span>
+                          )}
                         </td>
                         <td className="py-2.5 px-2">
                           <div className="flex items-center gap-1">
@@ -301,27 +328,36 @@ function ChampionDetail({ champ }: { champ: ChampionStats }) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold text-ink">{champ.champion}</span>
-            <span className={`text-sm font-bold ${tier.color}`}>{tier.tier} 티어</span>
+            {champ.totalGames > 0 && <span className={`text-sm font-bold ${tier.color}`}>{tier.tier} 티어</span>}
           </div>
           <div className="text-sm text-ink-subtle">
-            {champ.totalGames}판 · {champ.wins}승 {champ.totalGames - champ.wins}패
+            {champ.totalGames > 0
+              ? `${champ.totalGames}판 · ${champ.wins}승 ${champ.totalGames - champ.wins}패`
+              : "픽 기록 없음"}
+            {champ.banCount > 0 && (
+              <span className="text-lose"> · 밴 {champ.banCount}회 ({champ.banRate.toFixed(0)}%)</span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Stats */}
+      {champ.totalGames > 0 && (
       <div className="grid grid-cols-4 gap-2">
         <StatBox label="승률" value={`${champ.winRate.toFixed(0)}%`} color={champ.winRate >= 50 ? "text-win" : "text-lose"} />
         <StatBox label="KDA" value={champ.avgKda.toFixed(2)} color={champ.avgKda >= 3 ? "text-win" : undefined} />
         <StatBox label="CS" value={`${Math.round(champ.avgCs)}`} />
         <StatBox label="골드" value={`${Math.round(champ.avgGold).toLocaleString()}`} />
       </div>
+      )}
 
+      {champ.totalGames > 0 && (
       <div className="grid grid-cols-3 gap-2">
         <StatBox label="평균 킬" value={champ.avgKills.toFixed(1)} />
         <StatBox label="평균 데스" value={champ.avgDeaths.toFixed(1)} color="text-lose/80" />
         <StatBox label="평균 어시" value={champ.avgAssists.toFixed(1)} />
       </div>
+      )}
 
       {/* Players */}
       {champ.players.length > 0 && (
