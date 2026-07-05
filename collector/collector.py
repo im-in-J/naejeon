@@ -329,12 +329,15 @@ def main():
 
     last_game_id = None
     was_in_game = False
+    client_found = False
+    last_phase = "__init__"
 
     while True:
         # 1. lockfile 찾기
         lockfile_path = find_lockfile()
         if not lockfile_path:
             print("  롤 클라이언트를 찾는 중...")
+            client_found = False
             time.sleep(POLL_INTERVAL)
             continue
 
@@ -343,8 +346,28 @@ def main():
             time.sleep(POLL_INTERVAL)
             continue
 
+        if not client_found:
+            print("  ✅ 롤 클라이언트 감지 완료")
+            client_found = True
+
         # 2. 게임 상태 확인
         phase = get_game_phase(lock_info)
+
+        # 대기 상태가 바뀔 때마다 한 줄씩 출력 (멈춘 것처럼 보이지 않게)
+        in_game_phases = ("InProgress", "WaitingForStats", "PreEndOfGame", "Reconnect", "EndOfGame")
+        if phase != last_phase:
+            if phase not in in_game_phases:
+                phase_names = {
+                    None: "클라이언트 응답 대기",
+                    "None": "대기",
+                    "Lobby": "로비",
+                    "Matchmaking": "매칭 중",
+                    "ReadyCheck": "수락 대기",
+                    "ChampSelect": "챔피언 선택",
+                    "GameStart": "게임 시작",
+                }
+                print(f"  ⏳ 게임 시작을 기다리는 중... (현재: {phase_names.get(phase, phase)})")
+            last_phase = phase
 
         # 게임 중 (종료 대기 화면 포함 — WaitingForStats/PreEndOfGame에서
         # 플래그를 리셋하면 EndOfGame을 놓치므로 반드시 '게임 중'으로 취급)

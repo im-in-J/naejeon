@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
     console.error("내전수집기.bat not found in server bundle, using fallback:", err);
     batContent = '@echo off\npython "%~dp0naejeon-collector.py"\npause';
   }
+  // cmd는 CRLF 필수 — LF-only면 한글 bat에서 파싱이 깨져 유령 명령 에러 발생
+  batContent = batContent.replace(/\r?\n/g, "\r\n");
 
   // Build a simple ZIP file manually (no external deps)
   const files = [
