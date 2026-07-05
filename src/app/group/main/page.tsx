@@ -18,6 +18,7 @@ import {
   UserCog,
   GitCompareArrows,
   Download,
+  Plus,
 } from "lucide-react";
 import type { Group } from "@/lib/types";
 
@@ -85,10 +86,16 @@ export default function MainGroupPage() {
           <h1 className="text-lg font-semibold text-ink tracking-tight">{group.name}</h1>
           <span className="text-xs text-ink-tertiary">{uniquePlayers}명 · {group.matches.length}경기</span>
         </div>
-        <a href="/api/collector" download className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-ink-subtle hover:text-ink hover:bg-surface-1 transition-fast">
-          <Download size={13} />
-          수집기
-        </a>
+        <div className="flex items-center gap-1.5">
+          <a href="/api/collector" download className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium text-ink-subtle hover:text-ink hover:bg-surface-1 transition-fast">
+            <Download size={13} />
+            수집기
+          </a>
+          <Button size="sm" onClick={() => window.location.href = "/group/main/new"}>
+            <Plus size={13} />
+            수동 등록
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -15,8 +15,18 @@ export async function GET() {
 
     const supabase = createClient(url, key);
 
-    // Check if imported data already exists (by checking a known match id)
-    const firstImportId = (rawMatches[0] as { id: string }).id;
+    // Seed from imported data
+    const rawMatches = importedData as Array<{
+      id: string;
+      played_at: string;
+      created_at: string;
+      duration: string;
+      team1_data: { result: string; players: Array<{ name: string; champion: string; lane: string; kills: number; deaths: number; assists: number; cs: number; gold: number }> };
+      team2_data: { result: string; players: Array<{ name: string; champion: string; lane: string; kills: number; deaths: number; assists: number; cs: number; gold: number }> };
+    }>;
+
+    // Check if imported data already exists
+    const firstImportId = rawMatches[0].id;
     const { data: existing } = await supabase
       .from("matches")
       .select("id")
@@ -29,16 +39,6 @@ export async function GET() {
         .select("*", { count: "exact", head: true });
       return NextResponse.json({ success: true, message: "이미 시드 완료", count });
     }
-
-    // Seed from imported data
-    const rawMatches = importedData as Array<{
-      id: string;
-      played_at: string;
-      created_at: string;
-      duration: string;
-      team1_data: { result: string; players: Array<{ name: string; champion: string; lane: string; kills: number; deaths: number; assists: number; cs: number; gold: number }> };
-      team2_data: { result: string; players: Array<{ name: string; champion: string; lane: string; kills: number; deaths: number; assists: number; cs: number; gold: number }> };
-    }>;
 
     const nicknames = new Set<string>();
 

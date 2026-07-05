@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
-import { updateMemberProfile, mergeAliases } from "@/lib/store";
-import { Save, Edit3, User, X, Link } from "lucide-react";
+import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@/lib/store";
+import { Save, Edit3, User, X, Link, Trash2, PenLine } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
 
@@ -59,26 +59,43 @@ export function PlayerInfoTab({
   const [editTier, setEditTier] = useState("");
   const [editLanes, setEditLanes] = useState<Lane[]>([]);
   const [editRealName, setEditRealName] = useState("");
-  const [editAliasInput, setEditAliasInput] = useState("");
+  const [editNewNickname, setEditNewNickname] = useState("");
   const [showMerge, setShowMerge] = useState(false);
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergeAlias, setMergeAlias] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const openEdit = (member: Member) => {
     setEditing(member.nickname);
     setEditTier(member.tier || "");
     setEditLanes(member.preferredLanes || []);
     setEditRealName(member.realName || "");
+    setEditNewNickname(member.nickname);
   };
 
   const saveEdit = async () => {
     if (!editing) return;
-    await updateMemberProfile(editing, {
+    setSaving(true);
+
+    // 닉네임 변경 시
+    if (editNewNickname && editNewNickname !== editing) {
+      await renameMember(editing, editNewNickname);
+    }
+
+    const targetNickname = editNewNickname || editing;
+    await updateMemberProfile(targetNickname, {
       tier: editTier,
       preferredLanes: editLanes,
       realName: editRealName,
     });
     setEditing(null);
+    setSaving(false);
+    onUpdate();
+  };
+
+  const handleDelete = async (nickname: string) => {
+    if (!confirm(`"${nickname}" 선수를 삭제하시겠습니까? 매치 기록에서 해당 닉네임이 [삭제]로 표시됩니다.`)) return;
+    await deleteMember(nickname);
     onUpdate();
   };
 
@@ -237,6 +254,15 @@ export function PlayerInfoTab({
         title={`${editing} 정보 수정`}
       >
         <div className="space-y-5">
+          {/* Nickname */}
+          <Input
+            id="nickname"
+            label="닉네임"
+            placeholder="게임 닉네임"
+            value={editNewNickname}
+            onChange={(e) => setEditNewNickname(e.target.value)}
+          />
+
           {/* Real Name */}
           <Input
             id="real-name"
@@ -321,12 +347,27 @@ export function PlayerInfoTab({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>취소</Button>
-            <Button onClick={saveEdit}>
-              <Save size={16} />
-              저장
+          <div className="flex justify-between pt-2">
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => {
+                if (editing) {
+                  handleDelete(editing);
+                  setEditing(null);
+                }
+              }}
+            >
+              <Trash2 size={14} />
+              삭제
             </Button>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={() => setEditing(null)}>취소</Button>
+              <Button onClick={saveEdit} disabled={saving}>
+                <Save size={16} />
+                {saving ? "저장 중..." : "저장"}
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

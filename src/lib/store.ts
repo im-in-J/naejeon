@@ -159,6 +159,84 @@ export async function mergeAliases(mainNickname: string, aliasNickname: string) 
   await getSupabase().from("members").delete().eq("nickname", aliasNickname);
 }
 
+// ─── Member Rename / Delete ───
+
+export async function renameMember(oldNickname: string, newNickname: string) {
+  const sb = getSupabase();
+
+  // 1. Rename in all match data
+  const { data: matches } = await sb
+    .from("matches")
+    .select("id, players")
+    .eq("group_name", GROUP_NAME);
+
+  if (matches) {
+    for (const match of matches) {
+      const players = match.players as PlayerStat[];
+      let changed = false;
+      for (const p of players) {
+        if (p.nickname === oldNickname) {
+          p.nickname = newNickname;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await sb.from("matches").update({ players }).eq("id", match.id);
+      }
+    }
+  }
+
+  // 2. Create new member with old data, delete old
+  const { data: old } = await sb.from("members").select("*").eq("nickname", oldNickname).single();
+  if (old) {
+    await sb.from("members").upsert({
+      nickname: newNickname,
+      real_name: old.real_name,
+      tier: old.tier,
+      preferred_lanes: old.preferred_lanes,
+      aliases: old.aliases,
+    }, { onConflict: "nickname" });
+    await sb.from("members").delete().eq("nickname", oldNickname);
+  }
+}
+
+export async function deleteMember(nickname: string) {
+  // Remove from matches (replace with "삭제된 유저")
+  const sb = getSupabase();
+  const { data: matches } = await sb
+    .from("matches")
+    .select("id, players")
+    .eq("group_name", GROUP_NAME);
+
+  if (matches) {
+    for (const match of matches) {
+      const players = match.players as PlayerStat[];
+      let changed = false;
+      for (const p of players) {
+        if (p.nickname === nickname) {
+          p.nickname = `[삭제] ${nickname}`;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await sb.from("matches").update({ players }).eq("id", match.id);
+      }
+    }
+  }
+
+  await sb.from("members").delete().eq("nickname", nickname);
+}
+
+// ─── Match Update ───
+
+export async function updateMatch(matchId: string, players: PlayerStat[], gameDuration?: string) {
+  const sb = getSupabase();
+  const scored = calculateMvpScores(players);
+  const updateData: Record<string, unknown> = { players: scored };
+  if (gameDuration !== undefined) updateData.game_duration = gameDuration;
+  await sb.from("matches").update(updateData).eq("id", matchId);
+}
+
 // ─── Group Helper (for compatibility with existing components) ───
 
 export async function getGroup(): Promise<Group> {
