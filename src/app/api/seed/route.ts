@@ -26,14 +26,17 @@ export async function GET() {
     }>;
 
     // Check if imported data already exists
-    const firstImportId = rawMatches[0].id;
+    // 주의: import 매치 중 "하나라도" 있으면 시드 완료로 간주해야 함.
+    // 특정 매치 하나만 확인하면, 그 매치가 삭제됐을 때 접속할 때마다
+    // 삭제된 매치·통합된 멤버가 원본 닉네임으로 계속 부활한다.
+    const importIds = rawMatches.map((m) => m.id);
     const { data: existing } = await supabase
       .from("matches")
       .select("id")
-      .eq("id", firstImportId)
-      .single();
+      .in("id", importIds)
+      .limit(1);
 
-    if (existing) {
+    if (existing && existing.length > 0) {
       const { count } = await supabase
         .from("matches")
         .select("*", { count: "exact", head: true });

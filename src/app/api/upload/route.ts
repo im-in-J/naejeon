@@ -52,11 +52,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 부캐 닉네임 → 본캐 닉네임 매핑 (아이디 통합이 새 업로드에도 유지되도록)
+    const { data: memberRows } = await supabase
+      .from("members")
+      .select("nickname, aliases");
+    const aliasMap = new Map<string, string>();
+    for (const m of memberRows || []) {
+      for (const a of (m.aliases as string[]) || []) {
+        aliasMap.set(a, m.nickname);
+      }
+    }
+
     // Build player stats
-    const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => ({
+    const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => {
+      const rawNickname = String(p.nickname || `Player${i + 1}`);
+      return {
       id: `p-${i}`,
       matchId: "",
-      nickname: String(p.nickname || `Player${i + 1}`),
+      nickname: aliasMap.get(rawNickname) || rawNickname,
       champion: String(p.champion || ""),
       lane: p.lane || undefined,
       team: p.team || (i < 5 ? "blue" : "red"),
@@ -79,7 +92,8 @@ export async function POST(req: NextRequest) {
       mvpScore: 0,
       isMvp: false,
       isAce: false,
-    }));
+      };
+    });
 
     const scored = calculateMvpScores(players);
     const matchId = uuid();
@@ -110,8 +124,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Auto-register new members (ignore errors)
-    const { data: existing } = await supabase.from("members").select("nickname");
-    const existingSet = new Set((existing || []).map((m) => m.nickname));
+    const existingSet = new Set((memberRows || []).map((m) => m.nickname));
 
     const newMembers = scored
       .filter((p) => !existingSet.has(p.nickname))

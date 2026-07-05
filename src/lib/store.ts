@@ -47,7 +47,18 @@ export async function addMatch(
   players: PlayerStat[],
   gameDuration: string
 ): Promise<Match> {
-  const scored = calculateMvpScores(players);
+  // 부캐 닉네임 → 본캐 닉네임 매핑 (아이디 통합이 수동 등록에도 유지되도록)
+  const existingMembers = await getAllMembers();
+  const aliasMap = new Map<string, string>();
+  for (const m of existingMembers) {
+    for (const a of m.aliases || []) aliasMap.set(a, m.nickname);
+  }
+  const normalized = players.map((p) => ({
+    ...p,
+    nickname: aliasMap.get(p.nickname) || p.nickname,
+  }));
+
+  const scored = calculateMvpScores(normalized);
   const id = uuid();
 
   const { error } = await getSupabase().from("matches").insert({
@@ -60,7 +71,6 @@ export async function addMatch(
   if (error) throw new Error(error.message);
 
   // Auto-register new players as members
-  const existingMembers = await getAllMembers();
   const existingNicknames = new Set(existingMembers.map((m) => m.nickname));
 
   for (const p of scored) {
@@ -128,9 +138,18 @@ export async function mergeAliases(mainNickname: string, aliasNickname: string) 
 
   if (!main) return;
 
-  // 2. Update aliases
+  // 2. Update aliases (부캐가 이미 갖고 있던 부캐 목록도 승계)
+  const { data: aliasMember } = await getSupabase()
+    .from("members")
+    .select("aliases")
+    .eq("nickname", aliasNickname)
+    .single();
+
   const aliases = (main.aliases as string[]) || [];
-  if (!aliases.includes(aliasNickname)) aliases.push(aliasNickname);
+  const toAdd = [aliasNickname, ...((aliasMember?.aliases as string[]) || [])];
+  for (const a of toAdd) {
+    if (a !== mainNickname && !aliases.includes(a)) aliases.push(a);
+  }
   await getSupabase().from("members").update({ aliases }).eq("nickname", mainNickname);
 
   // 3. Rename in all match data
