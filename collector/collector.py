@@ -284,8 +284,211 @@ def main():
         time.sleep(POLL_INTERVAL)
 
 
+def get_match_history(lock_info, count=50):
+    """과거 매치 히스토리 가져오기"""
+    data = lcu_request(
+        lock_info,
+        f"/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex={count}"
+    )
+    if not data or "games" not in data:
+        return []
+    return data["games"].get("games", [])
+
+
+def format_history_match(game):
+    """매치 히스토리 데이터를 서버 포맷으로 변환"""
+    game_duration = game.get("gameDuration", 0)
+    minutes = game_duration // 60
+    seconds = game_duration % 60
+    duration = f"{minutes}:{seconds:02d}"
+
+    participants = game.get("participants", [])
+    identities = game.get("participantIdentities", [])
+
+    # participantId → player info 매핑
+    id_map = {}
+    for ident in identities:
+        pid = ident.get("participantId")
+        player_info = ident.get("player", {})
+        id_map[pid] = (
+            player_info.get("summonerName")
+            or player_info.get("gameName")
+            or player_info.get("riotIdGameName")
+            or f"Player{pid}"
+        )
+
+    players = []
+    for p in participants:
+        pid = p.get("participantId")
+        stats = p.get("stats", {})
+        team_id = p.get("teamId", 100)
+        team_side = "blue" if team_id == 100 else "red"
+
+        player = {
+            "nickname": id_map.get(pid, f"Player{pid}"),
+            "champion": p.get("championName", "") or game.get("participants", [{}])[0].get("championId", ""),
+            "team": team_side,
+            "win": stats.get("win", False),
+            "kills": stats.get("kills", 0),
+            "deaths": stats.get("deaths", 0),
+            "assists": stats.get("assists", 0),
+            "cs": stats.get("totalMinionsKilled", 0) + stats.get("neutralMinionsKilled", 0),
+            "gold": stats.get("goldEarned", 0),
+            "damageDealt": stats.get("totalDamageDealtToChampions", 0),
+            "damageTaken": stats.get("totalDamageTaken", 0),
+            "visionScore": stats.get("visionScore", 0),
+            "wardsPlaced": stats.get("wardsPlaced", 0),
+            "wardsDestroyed": stats.get("wardsKilled", 0),
+            "objectiveDamage": stats.get("damageDealtToObjectives", 0),
+            "ccScore": stats.get("totalTimeCrowdControlDealt", 0),
+            "healingDone": stats.get("totalHeal", 0),
+            "shieldingDone": stats.get("totalDamageShieldedOnTeammates", 0),
+        }
+        players.append(player)
+
+    return {
+        "gameDuration": duration,
+        "players": players,
+        "gameMode": game.get("gameMode", "CLASSIC"),
+    }
+
+
+def history_mode():
+    """과거 커스텀 게임 조회 → 선택 업로드"""
+    print("=" * 50)
+    print("  컴학내전 — 과거 경기 가져오기")
+    print("=" * 50)
+
+    lockfile_path = find_lockfile()
+    if not lockfile_path:
+        print("  ❌ 롤 클라이언트를 찾을 수 없습니다. 클라이언트를 먼저 실행해주세요.")
+        return
+
+    lock_info = parse_lockfile(lockfile_path)
+    if not lock_info:
+        print("  ❌ lockfile 파싱 실패")
+        return
+
+    print("  클라이언트 감지 완료. 매치 히스토리 조회 중...")
+    games = get_match_history(lock_info, 100)
+
+    if not games:
+        print("  ❌ 매치 히스토리를 가져올 수 없습니다.")
+        return
+
+    # 커스텀 게임만 필터 (queueId=0 또는 gameType="CUSTOM_GAME")
+    custom_games = [
+        g for g in games
+        if g.get("queueId", -1) == 0 or g.get("gameType") == "CUSTOM_GAME"
+    ]
+
+    if not custom_games:
+        print(f"  최근 {len(games)}경기 중 커스텀 게임이 없습니다.")
+        return
+
+    print(f"\n  커스텀 게임 {len(custom_games)}개 발견:\n")
+
+    for i, game in enumerate(custom_games):
+        game_duration = game.get("gameDuration", 0)
+        minutes = game_duration // 60
+        seconds = game_duration % 60
+
+        # 참가자 정보
+        identities = game.get("participantIdentities", [])
+        participants = game.get("participants", [])
+        player_names = []
+        for ident in identities:
+            info = ident.get("player", {})
+            name = info.get("summonerName") or info.get("gameName") or "?"
+            player_names.append(name)
+
+        # 날짜
+        from datetime import datetime
+        timestamp = game.get("gameCreation", 0) / 1000
+        date_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M") if timestamp else "?"
+
+        # 팀 구분
+        blue_players = []
+        red_players = []
+        for idx, p in enumerate(participants):
+            name = player_names[idx] if idx < len(player_names) else "?"
+            if p.get("teamId", 100) == 100:
+                blue_players.append(name)
+            else:
+                red_players.append(name)
+
+        # 승리팀
+        blue_win = any(p.get("stats", {}).get("win", False) for p in participants if p.get("teamId") == 100)
+
+        print(f"  [{i+1:2d}] {date_str}  ({minutes}:{seconds:02d})")
+        print(f"       {'🔵 승' if blue_win else '🔵 패'}: {', '.join(blue_players)}")
+        print(f"       {'🔴 승' if not blue_win else '🔴 패'}: {', '.join(red_players)}")
+        print()
+
+    # 사용자 선택
+    print("  ─────────────────────────────────")
+    print("  업로드할 게임 번호를 입력하세요.")
+    print("  여러 개: 1,3,5  |  범위: 1-5  |  전체: all  |  취소: q")
+    print()
+    choice = input("  선택: ").strip()
+
+    if choice.lower() == "q":
+        print("  취소합니다.")
+        return
+
+    # 선택 파싱
+    selected = set()
+    if choice.lower() == "all":
+        selected = set(range(len(custom_games)))
+    else:
+        for part in choice.split(","):
+            part = part.strip()
+            if "-" in part:
+                start, end = part.split("-", 1)
+                for n in range(int(start) - 1, int(end)):
+                    selected.add(n)
+            else:
+                selected.add(int(part) - 1)
+
+    selected = sorted([s for s in selected if 0 <= s < len(custom_games)])
+
+    if not selected:
+        print("  선택된 게임이 없습니다.")
+        return
+
+    print(f"\n  {len(selected)}개 게임 업로드 시작...\n")
+
+    success = 0
+    for idx in selected:
+        game = custom_games[idx]
+        match_data = format_history_match(game)
+
+        if not match_data or len(match_data["players"]) < 2:
+            print(f"  [{idx+1}] ⚠️  데이터 불완전, 건너뜀")
+            continue
+
+        # 플레이어 확인
+        blue = [p for p in match_data["players"] if p["team"] == "blue"]
+        red = [p for p in match_data["players"] if p["team"] == "red"]
+        blue_names = ", ".join(p["nickname"] for p in blue)
+        red_names = ", ".join(p["nickname"] for p in red)
+        print(f"  [{idx+1}] {match_data['gameDuration']} | {blue_names} vs {red_names}")
+
+        result = upload_match(match_data)
+        if result:
+            print(f"       ✅ 업로드 성공!")
+            success += 1
+        else:
+            print(f"       ❌ 업로드 실패")
+
+    print(f"\n  완료: {success}/{len(selected)} 업로드됨")
+
+
 if __name__ == "__main__":
     try:
-        main()
+        if len(sys.argv) > 1 and sys.argv[1] == "--history":
+            history_mode()
+        else:
+            main()
     except KeyboardInterrupt:
         print("\n  종료합니다.")
