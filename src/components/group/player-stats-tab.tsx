@@ -23,13 +23,35 @@ export function PlayerStatsTab({
   awards: Award[];
 }) {
   const [sortBy, setSortBy] = useState<SortKey>("totalScore");
+  const [sortAsc, setSortAsc] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerStats | null>(null);
 
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortBy(key);
+      setSortAsc(false);
+    }
+  };
+
   const sorted = [...playerStats].sort((a, b) => {
-    const aVal = a[sortBy] as number;
-    const bVal = b[sortBy] as number;
-    return bVal - aVal;
+    const diff = (a[sortBy] as number) - (b[sortBy] as number);
+    return sortAsc ? diff : -diff;
   });
+
+  const SortTh = ({ label, sortKey, title }: { label: string; sortKey: SortKey; title?: string }) => (
+    <th
+      className="text-center py-3 px-2 cursor-pointer select-none hover:text-ink transition-fast whitespace-nowrap"
+      title={title}
+      onClick={() => handleSort(sortKey)}
+    >
+      {label}
+      <span className={`ml-0.5 text-[9px] ${sortBy === sortKey ? "text-primary" : "text-transparent"}`}>
+        {sortBy === sortKey && sortAsc ? "▲" : "▼"}
+      </span>
+    </th>
+  );
 
   return (
     <div className="space-y-6">
@@ -52,33 +74,6 @@ export function PlayerStatsTab({
         </div>
       )}
 
-      {/* Sort Tabs — compact pills */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1">
-        {([
-          ["totalScore", "종합"],
-          ["winRate", "승률"],
-          ["avgKda", "KDA"],
-          ["gamesPlayed", "판수"],
-          ["csPerMin", "분당 CS"],
-          ["avgVision", "시야"],
-          ["avgKillParticipation", "킬관여"],
-          ["damagePerGold", "골드당 딜"],
-          ["mvpCount", "MVP"],
-        ] as [SortKey, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setSortBy(key)}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-fast cursor-pointer whitespace-nowrap ${
-              sortBy === key
-                ? "bg-primary/15 text-primary"
-                : "text-ink-subtle hover:text-ink hover:bg-surface-1"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {/* Leaderboard */}
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -87,20 +82,19 @@ export function PlayerStatsTab({
               <tr className="text-text-muted text-xs border-b border-border bg-bg-secondary/50">
                 <th className="text-center py-3 px-2 w-10">#</th>
                 <th className="text-left py-3 px-3">플레이어</th>
-                <th className="text-center py-3 px-2">경기</th>
-                <th className="text-center py-3 px-2">승률</th>
-                <th className="text-center py-3 px-2">KDA</th>
-                <th className="text-center py-3 px-2">분당 CS</th>
-                <th className="text-center py-3 px-2">시야점수</th>
-                <th className="text-center py-3 px-2">킬관여율</th>
-                <th className="text-center py-3 px-2">골드당 딜</th>
-                <th className="text-center py-3 px-2">MVP/ACE</th>
-                <th
-                  className="text-center py-3 px-2 cursor-help"
-                  title="그룹 내 백분위 가중합 (0~100): 승률(판수 보정) 22% + KDA 18% + 킬관여 15% + 분당CS 10% + 시야 10% + 골드당 딜 10% + MVP/ACE 10% + 판수 5%"
-                >
-                  점수
-                </th>
+                <SortTh label="경기" sortKey="gamesPlayed" />
+                <SortTh label="승률" sortKey="winRate" />
+                <SortTh label="KDA" sortKey="avgKda" />
+                <SortTh label="분당 CS" sortKey="csPerMin" />
+                <SortTh label="시야점수" sortKey="avgVision" />
+                <SortTh label="킬관여율" sortKey="avgKillParticipation" />
+                <SortTh label="골드당 딜" sortKey="damagePerGold" />
+                <SortTh label="MVP/ACE" sortKey="mvpCount" />
+                <SortTh
+                  label="점수"
+                  sortKey="totalScore"
+                  title="그룹 내 백분위 가중합 (0~100): 승률(판수 보정) 30% + MVP/ACE 15% + KDA 10% + 킬관여 10% + 분당CS 10% + 시야 10% + 골드당 딜 10% + 판수 5%, 판수가 적으면 신뢰도 계수로 감점"
+                />
               </tr>
             </thead>
             <tbody>

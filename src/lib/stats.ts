@@ -215,10 +215,10 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
     });
 
   // ── 종합 점수: 성적 테이블 컬럼 기반, 그룹 내 백분위 가중합 (0~100) ──
-  // 승률(판수 보정) 22% + KDA 18% + 킬관여 15% + 분당CS 10% + 시야 10%
-  // + 골드당 딜 10% + MVP/ACE 10% + 판수 5%
+  // 승률(판수 보정) 30% + MVP/ACE 15% + KDA 10% + 킬관여 10% + 분당CS 10%
+  // + 시야 10% + 골드당 딜 10% + 판수 5%, 마지막에 표본 신뢰도 계수 적용
   const metrics = results.map((r) => ({
-    adjWinRate: ((r.wins + 2.5) / (r.gamesPlayed + 5)) * 100, // 라플라스 보정
+    adjWinRate: ((r.wins + 5) / (r.gamesPlayed + 10)) * 100, // 라플라스 보정 (판수 적으면 50%로 수렴)
     kda: r.avgKda,
     kp: r.avgKillParticipation,
     cs: r.csPerMin,
@@ -239,15 +239,18 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
   };
   results.forEach((r, i) => {
     const m = metrics[i];
-    r.totalScore =
-      percentileOf(pools.adjWinRate, m.adjWinRate) * 0.22 +
-      percentileOf(pools.kda, m.kda) * 0.18 +
-      percentileOf(pools.kp, m.kp) * 0.15 +
+    const base =
+      percentileOf(pools.adjWinRate, m.adjWinRate) * 0.3 +
+      percentileOf(pools.mvpAce, m.mvpAce) * 0.15 +
+      percentileOf(pools.kda, m.kda) * 0.1 +
+      percentileOf(pools.kp, m.kp) * 0.1 +
       percentileOf(pools.cs, m.cs) * 0.1 +
       percentileOf(pools.vision, m.vision) * 0.1 +
       percentileOf(pools.dpg, m.dpg) * 0.1 +
-      percentileOf(pools.mvpAce, m.mvpAce) * 0.1 +
       percentileOf(pools.games, m.games) * 0.05;
+    // 표본 신뢰도 계수: 판수가 적을수록 점수를 깎음 (3판 ≈ ×0.71, 10판 ≈ ×0.88, 30판 ≈ ×0.95)
+    const confidence = Math.sqrt(m.games / (m.games + 3));
+    r.totalScore = base * confidence;
   });
 
   return results.sort((a, b) => b.totalScore - a.totalScore);
