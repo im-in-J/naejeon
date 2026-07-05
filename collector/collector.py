@@ -370,7 +370,7 @@ def history_mode():
         return
 
     print("  클라이언트 감지 완료. 매치 히스토리 조회 중...")
-    games = get_match_history(lock_info, 100)
+    games = get_match_history(lock_info, 200)
 
     if not games:
         print("  ❌ 매치 히스토리를 가져올 수 없습니다.")
