@@ -7,7 +7,14 @@ import { Modal } from "@/components/ui/modal";
 import { Crown } from "lucide-react";
 import type { PlayerStats, Award } from "@/lib/stats";
 
-type SortKey = "totalScore" | "winRate" | "avgKda" | "avgCs" | "avgGold" | "mvpCount" | "gamesPlayed";
+type SortKey =
+  | "totalScore" | "winRate" | "avgKda" | "avgCs" | "goldPerMin" | "avgVision"
+  | "avgTurretDamage" | "avgCcScore" | "firstBloodCount" | "bestMultiKill"
+  | "mvpCount" | "gamesPlayed";
+
+const MULTIKILL_LABEL: Record<number, string> = {
+  2: "더블킬", 3: "트리플킬", 4: "쿼드라킬", 5: "펜타킬",
+};
 
 export function PlayerStatsTab({
   playerStats,
@@ -54,7 +61,12 @@ export function PlayerStatsTab({
           ["avgKda", "KDA"],
           ["gamesPlayed", "판수"],
           ["avgCs", "CS"],
-          ["avgGold", "골드"],
+          ["goldPerMin", "분당골드"],
+          ["avgVision", "시야"],
+          ["avgTurretDamage", "포탑딜"],
+          ["avgCcScore", "CC"],
+          ["firstBloodCount", "선취점"],
+          ["bestMultiKill", "멀티킬"],
           ["mvpCount", "MVP"],
         ] as [SortKey, string][]).map(([key, label]) => (
           <button
@@ -84,7 +96,12 @@ export function PlayerStatsTab({
                 <th className="text-center py-3 px-2">KDA</th>
                 <th className="text-center py-3 px-2">평균 K/D/A</th>
                 <th className="text-center py-3 px-2">CS</th>
-                <th className="text-center py-3 px-2">골드</th>
+                <th className="text-center py-3 px-2">분당골드</th>
+                <th className="text-center py-3 px-2">시야</th>
+                <th className="text-center py-3 px-2">포탑딜</th>
+                <th className="text-center py-3 px-2">CC</th>
+                <th className="text-center py-3 px-2">선취점</th>
+                <th className="text-center py-3 px-2">멀티킬</th>
                 <th className="text-center py-3 px-2">MVP</th>
                 <th className="text-center py-3 px-2">점수</th>
               </tr>
@@ -126,7 +143,26 @@ export function PlayerStatsTab({
                   </td>
                   <td className="text-center py-3 px-2 text-text-primary">{Math.round(entry.avgCs)}</td>
                   <td className="text-center py-3 px-2 text-gold font-mono text-xs">
-                    {Math.round(entry.avgGold).toLocaleString()}
+                    {Math.round(entry.goldPerMin).toLocaleString()}
+                  </td>
+                  <td className="text-center py-3 px-2 text-text-secondary">{entry.avgVision.toFixed(1)}</td>
+                  <td className="text-center py-3 px-2 text-text-secondary text-xs">
+                    {entry.avgTurretDamage > 0 ? Math.round(entry.avgTurretDamage).toLocaleString() : "-"}
+                  </td>
+                  <td className="text-center py-3 px-2 text-text-secondary">
+                    {entry.avgCcScore > 0 ? Math.round(entry.avgCcScore) : "-"}
+                  </td>
+                  <td className="text-center py-3 px-2 text-text-secondary">
+                    {entry.firstBloodCount > 0 ? `${entry.firstBloodCount}회` : "-"}
+                  </td>
+                  <td className="text-center py-3 px-2 text-xs">
+                    {entry.bestMultiKill >= 2 ? (
+                      <span className={entry.bestMultiKill >= 4 ? "text-mvp font-bold" : "text-text-primary"}>
+                        {MULTIKILL_LABEL[entry.bestMultiKill]}
+                      </span>
+                    ) : (
+                      <span className="text-text-muted">-</span>
+                    )}
                   </td>
                   <td className="text-center py-3 px-2">
                     {entry.mvpCount > 0 ? <Badge variant="mvp">{entry.mvpCount}</Badge> : <span className="text-text-muted">-</span>}
@@ -169,7 +205,18 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
       <div className="grid grid-cols-3 gap-3">
         <MiniStat label="평균 K/D/A" value={`${player.avgKills.toFixed(1)} / ${player.avgDeaths.toFixed(1)} / ${player.avgAssists.toFixed(1)}`} />
         <MiniStat label="평균 CS" value={`${Math.round(player.avgCs)}`} />
-        <MiniStat label="평균 골드" value={`${Math.round(player.avgGold).toLocaleString()}`} />
+        <MiniStat label="분당 골드" value={`${Math.round(player.goldPerMin).toLocaleString()}`} />
+      </div>
+
+      <div className="grid grid-cols-4 gap-3">
+        <MiniStat label="시야점수" value={player.avgVision.toFixed(1)} />
+        <MiniStat label="평균 포탑딜" value={player.avgTurretDamage > 0 ? Math.round(player.avgTurretDamage).toLocaleString() : "-"} />
+        <MiniStat label="선취점" value={player.firstBloodCount > 0 ? `${player.firstBloodCount}회` : "-"} />
+        <MiniStat
+          label="최대 멀티킬"
+          value={player.bestMultiKill >= 2 ? MULTIKILL_LABEL[player.bestMultiKill] : "-"}
+          color={player.bestMultiKill >= 4 ? "text-mvp" : undefined}
+        />
       </div>
 
       {/* Recent form */}

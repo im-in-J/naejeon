@@ -64,11 +64,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Build player stats
+    const matchId = uuid();
     const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => {
       const rawNickname = String(p.nickname || `Player${i + 1}`);
       return {
       id: `p-${i}`,
-      matchId: "",
+      matchId,
       nickname: aliasMap.get(rawNickname) || rawNickname,
       champion: String(p.champion || ""),
       lane: p.lane || undefined,
@@ -88,6 +89,9 @@ export async function POST(req: NextRequest) {
       ccScore: Number(p.ccScore) || 0,
       healingDone: Number(p.healingDone) || 0,
       shieldingDone: Number(p.shieldingDone) || 0,
+      turretDamage: Number(p.turretDamage) || 0,
+      firstBlood: Boolean(p.firstBlood),
+      largestMultiKill: Number(p.largestMultiKill) || 0,
       killParticipation: 0,
       mvpScore: 0,
       isMvp: false,
@@ -96,7 +100,6 @@ export async function POST(req: NextRequest) {
     });
 
     const scored = calculateMvpScores(players);
-    const matchId = uuid();
 
     const row: Record<string, unknown> = {
       id: matchId,

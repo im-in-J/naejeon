@@ -20,6 +20,11 @@ export interface PlayerStats {
   avgDamage: number;
   avgDamageTaken: number;
   avgVision: number;
+  goldPerMin: number;
+  avgTurretDamage: number;
+  avgCcScore: number;
+  firstBloodCount: number;
+  bestMultiKill: number;
   mvpCount: number;
   aceCount: number;
   totalScore: number;
@@ -49,12 +54,15 @@ export interface ChampionUsage {
 
 export function buildPlayerStats(group: Group): PlayerStats[] {
   const map = new Map<string, PlayerStat[]>();
+  const minutesMap = new Map<string, number>(); // nickname → 총 플레이 시간(분)
 
   for (const match of group.matches) {
+    const minutes = parseDurationMinutes(match.gameDuration);
     for (const p of match.players) {
       const arr = map.get(p.nickname) || [];
       arr.push(p);
       map.set(p.nickname, arr);
+      minutesMap.set(p.nickname, (minutesMap.get(p.nickname) || 0) + minutes);
     }
   }
 
@@ -163,6 +171,15 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
         avgDamage: stats.reduce((s, p) => s + (p.damageDealt || 0), 0) / stats.length,
         avgDamageTaken: stats.reduce((s, p) => s + (p.damageTaken || 0), 0) / stats.length,
         avgVision: stats.reduce((s, p) => s + (p.visionScore || 0), 0) / stats.length,
+        goldPerMin: (() => {
+          const totalMinutes = minutesMap.get(nickname) || 0;
+          const totalGold = stats.reduce((s, p) => s + p.gold, 0);
+          return totalMinutes > 0 ? totalGold / totalMinutes : 0;
+        })(),
+        avgTurretDamage: stats.reduce((s, p) => s + (p.turretDamage || 0), 0) / stats.length,
+        avgCcScore: stats.reduce((s, p) => s + (p.ccScore || 0), 0) / stats.length,
+        firstBloodCount: stats.filter((p) => p.firstBlood).length,
+        bestMultiKill: Math.max(0, ...stats.map((p) => p.largestMultiKill || 0)),
         mvpCount,
         aceCount,
         totalScore,

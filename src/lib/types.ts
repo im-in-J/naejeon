@@ -50,6 +50,9 @@ export interface PlayerStat {
   ccScore: number;
   healingDone: number;
   shieldingDone: number;
+  turretDamage?: number;
+  firstBlood?: boolean;
+  largestMultiKill?: number;
   killParticipation: number;
   mvpScore: number;
   isMvp: boolean;

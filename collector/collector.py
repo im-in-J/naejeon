@@ -258,6 +258,9 @@ def format_match_data(eog_data):
                 "ccScore": stats.get("TOTAL_TIME_CROWD_CONTROL_DEALT", 0),
                 "healingDone": stats.get("TOTAL_HEAL", 0),
                 "shieldingDone": stats.get("TOTAL_DAMAGE_SHIELDED_ON_TEAMMATES", 0),
+                "turretDamage": stats.get("TOTAL_DAMAGE_DEALT_TO_TURRETS", 0),
+                "firstBlood": bool(stats.get("FIRST_BLOOD", 0)),
+                "largestMultiKill": stats.get("LARGEST_MULTI_KILL", 0),
             }
             players.append(player)
 
@@ -306,9 +309,10 @@ def print_match_summary(match_data):
     print(f"  {'🔴 승' if not blue_win else '🔴 패'}: {', '.join(p['champion'] for p in red)}")
 
 
-def enrich_lanes_from_history(lock_info, match_data, game_id):
-    """EOG 데이터에는 포지션이 없어서, 매치 히스토리 상세에서 라인 정보를 보강.
-    게임 직후라 히스토리에 아직 없을 수 있음 — 실패해도 무시 (서버가 폴백 처리)"""
+def enrich_from_history(lock_info, match_data, game_id):
+    """EOG에 없거나 불확실한 정보(포지션, 포탑딜, 선취점, 멀티킬)를
+    매치 히스토리 상세로 보강. 게임 직후라 히스토리에 아직 없을 수
+    있음 — 실패해도 무시 (서버가 폴백 처리)"""
     full = get_full_game(lock_info, game_id)
     if not full:
         return
@@ -316,7 +320,7 @@ def enrich_lanes_from_history(lock_info, match_data, game_id):
         i.get("participantId"): (i.get("player", {}) or {})
         for i in full.get("participantIdentities", [])
     }
-    lane_by_name = {}
+    extra_by_name = {}
     for p in full.get("participants", []):
         info = ident_map.get(p.get("participantId"), {})
         name = (
@@ -324,12 +328,27 @@ def enrich_lanes_from_history(lock_info, match_data, game_id):
             or info.get("gameName")
             or info.get("riotIdGameName")
         )
-        lane = lane_from_timeline(p)
-        if name and lane:
-            lane_by_name[name] = lane
+        if not name:
+            continue
+        stats = p.get("stats", {})
+        extra_by_name[name] = {
+            "lane": lane_from_timeline(p),
+            "turretDamage": stats.get("damageDealtToTurrets", 0),
+            "firstBlood": stats.get("firstBloodKill", False),
+            "largestMultiKill": stats.get("largestMultiKill", 0),
+        }
     for mp in match_data["players"]:
-        if mp["nickname"] in lane_by_name:
-            mp["lane"] = lane_by_name[mp["nickname"]]
+        extra = extra_by_name.get(mp["nickname"])
+        if not extra:
+            continue
+        if extra["lane"]:
+            mp["lane"] = extra["lane"]
+        if extra["turretDamage"]:
+            mp["turretDamage"] = extra["turretDamage"]
+        if extra["firstBlood"]:
+            mp["firstBlood"] = True
+        if extra["largestMultiKill"]:
+            mp["largestMultiKill"] = extra["largestMultiKill"]
 
 
 def handle_end_of_game(lock_info, last_game_id):
@@ -378,9 +397,9 @@ def handle_end_of_game(lock_info, last_game_id):
 
     print_match_summary(match_data)
 
-    # 포지션 정보 보강 (골드차이 스탯용)
+    # 포지션·포탑딜·선취점·멀티킬 보강
     try:
-        enrich_lanes_from_history(lock_info, match_data, game_id)
+        enrich_from_history(lock_info, match_data, game_id)
     except Exception:
         pass
 
@@ -546,6 +565,9 @@ def format_history_match(game):
             "ccScore": stats.get("totalTimeCrowdControlDealt", 0),
             "healingDone": stats.get("totalHeal", 0),
             "shieldingDone": stats.get("totalDamageShieldedOnTeammates", 0),
+            "turretDamage": stats.get("damageDealtToTurrets", 0),
+            "firstBlood": stats.get("firstBloodKill", False),
+            "largestMultiKill": stats.get("largestMultiKill", 0),
         }
         players.append(player)
 
