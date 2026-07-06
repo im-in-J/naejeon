@@ -5,8 +5,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Shuffle, Check, Users, Zap } from "lucide-react";
 import type { PlayerStats } from "@/lib/stats";
-import type { Group } from "@/lib/types";
+import type { Group, Lane } from "@/lib/types";
 import { getBalancerPlayers, balanceTeams, type BalancerPlayer } from "@/lib/stats";
+
+const LANE_EMOJI: Record<string, string> = {
+  top: "🛡️", jungle: "🌿", mid: "🔥", adc: "🏹", support: "💚",
+};
+const LANE_LABEL: Record<string, string> = {
+  top: "탑", jungle: "정글", mid: "미드", adc: "원딜", support: "서포터",
+};
 
 const TIER_COLORS: Record<string, string> = {
   "실버": "text-gray-300",
@@ -36,9 +43,18 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
     return map;
   }, [group]);
 
+  // 선호 포지션 (선수 정보 탭에서 설정)
+  const lanePrefs = useMemo(() => {
+    const map: Record<string, Lane[]> = {};
+    for (const m of group.members) {
+      if (m.preferredLanes && m.preferredLanes.length > 0) map[m.nickname] = m.preferredLanes;
+    }
+    return map;
+  }, [group]);
+
   const allPlayers = useMemo(
-    () => getBalancerPlayers(playerStats, tierOverrides),
-    [playerStats, tierOverrides]
+    () => getBalancerPlayers(playerStats, tierOverrides, lanePrefs),
+    [playerStats, tierOverrides, lanePrefs]
   );
 
   const togglePlayer = (nickname: string) => {
@@ -72,8 +88,9 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
       <Card className="flex items-center gap-3 py-3 px-4">
         <Users size={18} className="text-accent shrink-0" />
         <p className="text-sm text-text-secondary">
-          참여할 플레이어를 선택하면 솔랭 티어 + 내전 전적을 종합해서 팀을 추천합니다.
-          티어는 <span className="text-accent">선수 정보</span> 탭에서 설정할 수 있습니다.
+          참여할 플레이어를 선택하면 솔랭 티어 + 내전 성적(종합점수)을 종합해서 팀을 추천하고,
+          10명일 때는 선호 포지션까지 고려해 라인을 배정합니다.
+          티어·선호 포지션은 <span className="text-accent">선수 정보</span> 탭에서 설정할 수 있습니다.
         </p>
       </Card>
 
@@ -200,6 +217,14 @@ function TeamCard({
         {team.map((p) => (
           <div key={p.nickname} className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
+              {p.assignedLane && (
+                <span
+                  className="text-xs w-14 shrink-0 text-text-secondary"
+                  title={p.preferredLanes?.length ? `선호: ${p.preferredLanes.map((l) => LANE_LABEL[l]).join(" > ")}` : "선호 포지션 미설정"}
+                >
+                  {LANE_EMOJI[p.assignedLane]} {LANE_LABEL[p.assignedLane]}
+                </span>
+              )}
               <span className="font-medium text-text-primary">{p.nickname}</span>
               {tiers[p.nickname] && (
                 <span className={`text-xs font-bold ${getTierColor(tiers[p.nickname])}`}>

@@ -611,6 +611,8 @@ export interface BalancerPlayer {
   gamesPlayed: number;
   winRate: number;
   avgKda: number;
+  preferredLanes?: Lane[];
+  assignedLane?: Lane; // 밸런스 결과에서 배정된 포지션 (10인일 때)
 }
 
 // Base scores per tier (4=lowest, 1=highest within tier)
@@ -629,13 +631,19 @@ function parseTierScore(tier: string): number {
   return base + (4 - division) * 0.25;
 }
 
-export function getBalancerPlayers(playerStats: PlayerStats[], tierOverrides: Record<string, string>): BalancerPlayer[] {
+export function getBalancerPlayers(
+  playerStats: PlayerStats[],
+  tierOverrides: Record<string, string>,
+  lanePrefs: Record<string, Lane[]> = {}
+): BalancerPlayer[] {
   return playerStats.map((p) => {
     const tier = tierOverrides[p.nickname] || "";
     const tierScore = parseTierScore(tier);
-    // Weighted: 60% tier, 40% internal performance
-    const perfScore = (p.avgKda * 0.5 + p.winRate * 0.03 + Math.min(p.avgCs / 30, 3)) * 2;
-    const score = tierScore * 0.6 + perfScore * 0.4;
+    // 내전 성적 = 선수별 성적 탭의 종합점수(0~100 백분위)를 0~10 스케일로.
+    // 판수가 적을수록 내전 성적 대신 티어를 더 신뢰 (최대 40%까지 성적 반영)
+    const perfScore = p.totalScore / 10;
+    const wPerf = 0.4 * Math.sqrt(p.gamesPlayed / (p.gamesPlayed + 5));
+    const score = tierScore * (1 - wPerf) + perfScore * wPerf;
 
     return {
       nickname: p.nickname,
@@ -644,8 +652,42 @@ export function getBalancerPlayers(playerStats: PlayerStats[], tierOverrides: Re
       gamesPlayed: p.gamesPlayed,
       winRate: p.winRate,
       avgKda: p.avgKda,
+      preferredLanes: lanePrefs[p.nickname],
     };
   });
+}
+
+const BALANCE_LANES: Lane[] = ["top", "jungle", "mid", "adc", "support"];
+
+// 선호 포지션 적합도: 1순위 1.0, 2순위 0.8 … / 미선호 라인 0.1 / 선호 미설정자는 어디든 0.5
+function lanePrefScore(p: BalancerPlayer, lane: Lane): number {
+  const prefs = p.preferredLanes;
+  if (!prefs || prefs.length === 0) return 0.5;
+  const idx = prefs.indexOf(lane);
+  return idx === -1 ? 0.1 : 1 - idx * 0.2;
+}
+
+function permutations<T>(arr: T[]): T[][] {
+  if (arr.length <= 1) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    for (const perm of permutations(rest)) out.push([arr[i], ...perm]);
+  }
+  return out;
+}
+
+const LANE_PERMS = permutations(BALANCE_LANES);
+
+// 5명에게 5개 라인을 배정하는 최적 조합 (선호 적합도 합 최대)
+function bestLaneAssignment(team: BalancerPlayer[]): { fit: number; lanes: Lane[] } {
+  let best: { fit: number; lanes: Lane[] } = { fit: -1, lanes: BALANCE_LANES };
+  for (const perm of LANE_PERMS) {
+    let fit = 0;
+    for (let i = 0; i < team.length; i++) fit += lanePrefScore(team[i], perm[i]);
+    if (fit > best.fit) best = { fit, lanes: perm };
+  }
+  return best;
 }
 
 export function balanceTeams(
@@ -656,26 +698,52 @@ export function balanceTeams(
   const n = players.length;
   const teamSize = Math.floor(n / 2);
   const sorted = [...players].sort((a, b) => b.score - a.score);
+  const withLanes = n === 10; // 10인일 때만 포지션 배정 고려
 
   let bestTeam1: BalancerPlayer[] = [];
   let bestTeam2: BalancerPlayer[] = [];
   let bestDiff = Infinity;
+  let bestObjective = Infinity;
 
-  // For small groups, try all combinations
-  if (n <= 10) {
-    const combinations = getCombinations(sorted, teamSize);
-    for (const team1 of combinations) {
-      const team1Set = new Set(team1.map((p) => p.nickname));
-      const team2 = sorted.filter((p) => !team1Set.has(p.nickname));
-      const score1 = team1.reduce((s, p) => s + p.score, 0);
-      const score2 = team2.reduce((s, p) => s + p.score, 0);
-      const diff = Math.abs(score1 - score2);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestTeam1 = team1;
-        bestTeam2 = team2;
-      }
+  const combinations = getCombinations(sorted, teamSize);
+  for (const team1 of combinations) {
+    const team1Set = new Set(team1.map((p) => p.nickname));
+    const team2 = sorted.filter((p) => !team1Set.has(p.nickname));
+    const score1 = team1.reduce((s, p) => s + p.score, 0);
+    const score2 = team2.reduce((s, p) => s + p.score, 0);
+    const diff = Math.abs(score1 - score2);
+
+    // 점수 균형 + 포지션 적합도(팀당 최대 5.0)를 함께 최적화:
+    // 선호 한 단계(0.2)를 어기는 것 = 점수 차이 0.2와 동일한 비용
+    let objective = diff;
+    let lanes1: Lane[] | null = null;
+    let lanes2: Lane[] | null = null;
+    if (withLanes) {
+      const a1 = bestLaneAssignment(team1);
+      const a2 = bestLaneAssignment(team2);
+      objective = diff + (10 - a1.fit - a2.fit);
+      lanes1 = a1.lanes;
+      lanes2 = a2.lanes;
     }
+
+    if (objective < bestObjective) {
+      bestObjective = objective;
+      bestDiff = diff;
+      bestTeam1 = lanes1
+        ? team1.map((p, i) => ({ ...p, assignedLane: lanes1![i] }))
+        : team1;
+      bestTeam2 = lanes2
+        ? team2.map((p, i) => ({ ...p, assignedLane: lanes2![i] }))
+        : team2;
+    }
+  }
+
+  // 포지션 배정이 있으면 탑→서폿 순으로 정렬해서 반환
+  const laneOrder = (p: BalancerPlayer) =>
+    p.assignedLane ? BALANCE_LANES.indexOf(p.assignedLane) : 0;
+  if (withLanes) {
+    bestTeam1 = [...bestTeam1].sort((a, b) => laneOrder(a) - laneOrder(b));
+    bestTeam2 = [...bestTeam2].sort((a, b) => laneOrder(a) - laneOrder(b));
   }
 
   return { team1: bestTeam1, team2: bestTeam2, diff: Math.round(bestDiff * 100) / 100 };
