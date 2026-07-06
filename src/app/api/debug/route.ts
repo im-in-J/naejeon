@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { assignLanesByOrder } from "@/lib/lanes";
+import type { PlayerStat } from "@/lib/types";
 
 export async function GET() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,7 +34,10 @@ export async function GET() {
     // 데이터 무결성 리포트 (재수집 후 점검용)
     type P = { nickname?: string; champion?: string; lane?: string; win?: boolean };
     const rows = matches || [];
-    const allPlayers = rows.flatMap((m) => (m.players as P[]) || []);
+    // 라인은 화면과 동일하게 로비 순서 기반 배정을 적용한 값으로 집계
+    const allPlayers = rows.flatMap((m) =>
+      assignLanesByOrder(((m.players as PlayerStat[]) || [])) as P[]
+    );
     const laneCount = new Map<string, number>();
     const playerGames = new Map<string, number>();
     for (const p of allPlayers) {

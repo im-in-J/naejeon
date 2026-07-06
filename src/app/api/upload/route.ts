@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { calculateMvpScores } from "@/lib/mvp";
 import { normalizeChampionName } from "@/lib/champions";
 import { normalizeNickname } from "@/lib/nicknames";
+import { assignLanesByOrder } from "@/lib/lanes";
 import { v4 as uuid } from "uuid";
 import type { PlayerStat } from "@/lib/types";
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const scored = calculateMvpScores(players);
+    const scored = calculateMvpScores(assignLanesByOrder(players));
 
     const row: Record<string, unknown> = {
       group_name: "컴학내전",

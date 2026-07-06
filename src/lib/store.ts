@@ -3,17 +3,21 @@ import type { Group, Match, PlayerStat, Member, Lane } from "./types";
 import { calculateMvpScores } from "./mvp";
 import { normalizeChampionName } from "./champions";
 import { normalizeNickname } from "./nicknames";
+import { assignLanesByOrder } from "./lanes";
 import { v4 as uuid } from "uuid";
 
 const GROUP_NAME = "컴학내전";
 
-// 수집기가 영문 챔피언 이름으로 올린 과거 데이터를 한글로, PlayerN 폴백 닉네임을 youuuuu로 정규화해서 읽음
+// 수집기가 올린 과거 데이터 정규화: 영문 챔피언 이름 → 한글, PlayerN 폴백 닉네임 → youuuuu,
+// 부정확한 라이엇 포지션 → 로비 순서 기반 라인
 function normalizePlayers(players: PlayerStat[]): PlayerStat[] {
-  return players.map((p) => ({
-    ...p,
-    nickname: normalizeNickname(p.nickname),
-    champion: normalizeChampionName(p.champion),
-  }));
+  return assignLanesByOrder(
+    players.map((p) => ({
+      ...p,
+      nickname: normalizeNickname(p.nickname),
+      champion: normalizeChampionName(p.champion),
+    }))
+  );
 }
 
 function normalizeBans(bans: Match["bans"]): Match["bans"] | undefined {
