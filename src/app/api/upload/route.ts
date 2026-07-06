@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateMvpScores } from "@/lib/mvp";
 import { normalizeChampionName } from "@/lib/champions";
+import { normalizeNickname } from "@/lib/nicknames";
 import { v4 as uuid } from "uuid";
 import type { PlayerStat } from "@/lib/types";
 
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     // Build player stats (덮어쓰기면 기존 매치 id 유지)
     const matchId = existingId || uuid();
     const players: PlayerStat[] = match.players.map((p: Record<string, unknown>, i: number) => {
-      const rawNickname = String(p.nickname || `Player${i + 1}`);
+      const rawNickname = normalizeNickname(String(p.nickname || `Player${i + 1}`));
       return {
       id: `p-${i}`,
       matchId,
