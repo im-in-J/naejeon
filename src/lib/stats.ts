@@ -510,13 +510,19 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   if (ccKing && ccKing.avgCcScore > 0)
     awards.push({ title: "CC왕", emoji: "⛓️", player: ccKing.nickname, value: `평균 ${ccKing.avgCcScore.toFixed(1)}` });
 
+  const bestTank = [...qualified].sort((a, b) => b.avgDamageTaken - a.avgDamageTaken)[0];
+  if (bestTank && bestTank.avgDamageTaken > 0)
+    awards.push({ title: "최강 탱커", emoji: "🛡️", player: bestTank.nickname, value: `평균 ${Math.round(bestTank.avgDamageTaken).toLocaleString()} 받은 피해` });
+
+  // 시야점수 꼴등
   const worstVision = [...qualified].sort((a, b) => a.avgVision - b.avgVision)[0];
   if (worstVision)
-    awards.push({ title: "시야점수 꼴등", emoji: "🙈", player: worstVision.nickname, value: `평균 ${worstVision.avgVision.toFixed(1)}` });
+    awards.push({ title: "리신상", emoji: "🙈", player: worstVision.nickname, value: `시야점수 평균 ${worstVision.avgVision.toFixed(1)}` });
 
+  // 킬관여율 꼴등
   const worstKp = [...qualified].sort((a, b) => a.avgKillParticipation - b.avgKillParticipation)[0];
   if (worstKp)
-    awards.push({ title: "킬관여율 꼴등", emoji: "🏝️", player: worstKp.nickname, value: `${worstKp.avgKillParticipation.toFixed(0)}%` });
+    awards.push({ title: "방관상", emoji: "🍿", player: worstKp.nickname, value: `킬관여율 ${worstKp.avgKillParticipation.toFixed(0)}%` });
 
   // 최다 ACE
   const mostAce = [...qualified].sort((a, b) => b.aceCount - a.aceCount)[0];
@@ -550,14 +556,14 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
     }
   }
 
-  // 베스트 듀오 (같은 팀 승률 최고, 최소 3판, 두 명 모두 15판 이상)
+  // 베스트 듀오 (같은 팀 승률 최고, 최소 10판, 두 명 모두 15판 이상) / 워스트 듀오 (최소 3판)
   const bothQualified = (key: string) => key.split("|||").every((n) => qualifiedSet.has(n));
   let bestDuo: { key: string; wr: number; total: number } | null = null;
   let worstDuo: { key: string; wr: number; total: number } | null = null;
   for (const [key, { wins, total }] of duoMap) {
     if (total < 3 || !bothQualified(key)) continue;
     const wr = wins / total;
-    if (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total))
+    if (total >= 10 && (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total)))
       bestDuo = { key, wr, total };
     if (!worstDuo || wr < worstDuo.wr || (wr === worstDuo.wr && total > worstDuo.total))
       worstDuo = { key, wr, total };
