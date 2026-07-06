@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Crown } from "lucide-react";
+import { Crown, Search } from "lucide-react";
 import type { PlayerStats, Award } from "@/lib/stats";
 
 type SortKey =
@@ -25,6 +25,7 @@ export function PlayerStatsTab({
   const [sortBy, setSortBy] = useState<SortKey>("totalScore");
   const [sortAsc, setSortAsc] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerStats | null>(null);
+  const [search, setSearch] = useState("");
 
   const handleSort = (key: SortKey) => {
     if (sortBy === key) {
@@ -39,6 +40,12 @@ export function PlayerStatsTab({
     const diff = (a[sortBy] as number) - (b[sortBy] as number);
     return sortAsc ? diff : -diff;
   });
+
+  // 검색해도 순위(#)는 전체 기준 유지
+  const query = search.trim().toLowerCase();
+  const visible = sorted
+    .map((entry, rank) => ({ entry, rank }))
+    .filter(({ entry }) => !query || entry.nickname.toLowerCase().includes(query));
 
   const SortTh = ({ label, sortKey, title }: { label: string; sortKey: SortKey; title?: string }) => (
     <th
@@ -74,6 +81,19 @@ export function PlayerStatsTab({
         </div>
       )}
 
+      {/* Search */}
+      <div className="flex justify-end">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="선수 검색"
+            className="w-44 rounded-lg bg-surface-1 border border-hairline pl-8 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-primary-hover/50 transition-fast"
+          />
+        </div>
+      </div>
+
       {/* Leaderboard */}
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -98,20 +118,27 @@ export function PlayerStatsTab({
               </tr>
             </thead>
             <tbody>
-              {sorted.map((entry, i) => (
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="text-center py-8 text-text-muted text-sm">
+                    &quot;{search}&quot; 검색 결과가 없습니다
+                  </td>
+                </tr>
+              )}
+              {visible.map(({ entry, rank }) => (
                 <tr
                   key={entry.nickname}
                   className="border-b border-border/30 hover:bg-bg-card-hover/50 transition-colors cursor-pointer"
                   onClick={() => setSelectedPlayer(entry)}
                 >
                   <td className="text-center py-3 px-2">
-                    <span className={`font-bold ${i === 0 ? "rank-1 text-base" : i === 1 ? "rank-2" : i === 2 ? "rank-3" : "text-text-muted"}`}>
-                      {i + 1}
+                    <span className={`font-bold ${rank === 0 ? "rank-1 text-base" : rank === 1 ? "rank-2" : rank === 2 ? "rank-3" : "text-text-muted"}`}>
+                      {rank + 1}
                     </span>
                   </td>
                   <td className="py-3 px-3">
                     <div className="font-medium text-text-primary flex items-center gap-1.5">
-                      {i === 0 && <Crown size={14} className="text-gold" />}
+                      {rank === 0 && <Crown size={14} className="text-gold" />}
                       {entry.nickname}
                     </div>
                   </td>

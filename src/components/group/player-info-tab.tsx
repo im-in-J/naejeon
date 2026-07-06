@@ -9,7 +9,7 @@ import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { buildRadarStats } from "@/lib/stats";
-import { Save, Edit3, User, X, Link, Trash2, PenLine } from "lucide-react";
+import { Save, Edit3, User, X, Link, Trash2, PenLine, Search } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
 
@@ -67,6 +67,7 @@ export function PlayerInfoTab({
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergeAlias, setMergeAlias] = useState("");
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
 
   const openEdit = (member: Member) => {
     setEditing(member.nickname);
@@ -144,20 +145,46 @@ export function PlayerInfoTab({
     };
   });
 
+  // 닉네임·실명·부캐 닉네임으로 검색
+  const query = search.trim().toLowerCase();
+  const visiblePlayers = query
+    ? players.filter(
+        (p) =>
+          p.nickname.toLowerCase().includes(query) ||
+          (p.realName || "").toLowerCase().includes(query) ||
+          (p.aliases || []).some((a) => a.toLowerCase().includes(query))
+      )
+    : players;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-text-secondary">
           선수별 정보를 관리하세요. 티어와 선호 라인은 팀 밸런스에 반영됩니다.
         </p>
-        <Button variant="secondary" size="sm" onClick={() => setShowMerge(true)}>
-          <Link size={14} />
-          아이디 통합
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="선수 검색 (닉네임·실명·부캐)"
+              className="w-52 rounded-lg bg-surface-1 border border-hairline pl-8 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-primary-hover/50 transition-fast"
+            />
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => setShowMerge(true)}>
+            <Link size={14} />
+            아이디 통합
+          </Button>
+        </div>
       </div>
 
+      {visiblePlayers.length === 0 && (
+        <p className="text-center py-8 text-text-muted text-sm">&quot;{search}&quot; 검색 결과가 없습니다</p>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {players.map((player) => (
+        {visiblePlayers.map((player) => (
           <Card key={player.nickname} className="p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2">
