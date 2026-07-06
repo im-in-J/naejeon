@@ -3,11 +3,11 @@
 import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { buildTeamSideStats, type PlayerTeamSide, type ChampionTeamSide, type DuoRecord, type TeamSideOverall } from "@/lib/stats";
+import { buildTeamSideStats, type PlayerTeamSide, type ChampionTeamSide, type TeamSideOverall } from "@/lib/stats";
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Group } from "@/lib/types";
 
-type SubTab = "overview" | "players" | "champions" | "duos";
+type SubTab = "overview" | "players" | "champions";
 
 export function TeamSideTab({ group }: { group: Group }) {
   const [sub, setSub] = useState<SubTab>("overview");
@@ -21,7 +21,6 @@ export function TeamSideTab({ group }: { group: Group }) {
           ["overview", "전체"],
           ["players", "선수별"],
           ["champions", "챔피언별"],
-          ["duos", "듀오 상성"],
         ] as [SubTab, string][]).map(([key, label]) => (
           <button
             key={key}
@@ -38,7 +37,6 @@ export function TeamSideTab({ group }: { group: Group }) {
       {sub === "overview" && <OverviewSection overall={data.overall} totalMatches={group.matches.length} />}
       {sub === "players" && <PlayersSection players={data.players} />}
       {sub === "champions" && <ChampionsSection champions={data.champions} />}
-      {sub === "duos" && <DuosSection duos={data.duos} />}
     </div>
   );
 }
@@ -299,89 +297,3 @@ function ChampionsSection({ champions }: { champions: ChampionTeamSide[] }) {
   );
 }
 
-// ─── Duos ───
-
-function DuosSection({ duos }: { duos: DuoRecord[] }) {
-  const bestDuos = duos.filter((d) => d.sameTeamGames >= 2).sort((a, b) => b.sameTeamWinRate - a.sameTeamWinRate);
-  const rivals = duos.filter((d) => d.oppositeGames >= 2).sort((a, b) => b.oppositeGames - a.oppositeGames);
-
-  return (
-    <div className="space-y-5">
-      {/* Best duos */}
-      <div>
-        <div className="text-xs text-ink-subtle mb-2 font-medium">베스트 듀오 (같은 팀 승률)</div>
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-ink-subtle text-xs border-b border-hairline bg-canvas">
-                  <th className="text-left py-2.5 px-3">듀오</th>
-                  <th className="text-center py-2.5 px-2">함께한 경기</th>
-                  <th className="text-center py-2.5 px-2">승률</th>
-                  <th className="text-center py-2.5 px-2">전적</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bestDuos.slice(0, 15).map((d, i) => (
-                  <tr key={i} className="border-b border-hairline/30 hover:bg-surface-1 transition-fast">
-                    <td className="py-2.5 px-3">
-                      <span className="font-medium text-ink">{d.player1}</span>
-                      <span className="text-ink-tertiary mx-1.5">&</span>
-                      <span className="font-medium text-ink">{d.player2}</span>
-                    </td>
-                    <td className="text-center py-2.5 px-2 text-ink-muted">{d.sameTeamGames}</td>
-                    <td className="text-center py-2.5 px-2">
-                      <span className={`font-semibold ${d.sameTeamWinRate >= 60 ? "text-win" : d.sameTeamWinRate < 40 ? "text-lose" : "text-ink"}`}>
-                        {d.sameTeamWinRate.toFixed(0)}%
-                      </span>
-                    </td>
-                    <td className="text-center py-2.5 px-2 text-ink-muted text-xs">
-                      {d.sameTeamWins}W {d.sameTeamGames - d.sameTeamWins}L
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-
-      {/* Rivals */}
-      <div>
-        <div className="text-xs text-ink-subtle mb-2 font-medium">라이벌 (적팀으로 만난 횟수)</div>
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-ink-subtle text-xs border-b border-hairline bg-canvas">
-                  <th className="text-left py-2.5 px-3">매치업</th>
-                  <th className="text-center py-2.5 px-2">맞대결</th>
-                  <th className="text-center py-2.5 px-2">상대 전적</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rivals.slice(0, 15).map((d, i) => (
-                  <tr key={i} className="border-b border-hairline/30 hover:bg-surface-1 transition-fast">
-                    <td className="py-2.5 px-3">
-                      <span className="font-medium text-ink">{d.player1}</span>
-                      <span className="text-ink-tertiary mx-1.5">vs</span>
-                      <span className="font-medium text-ink">{d.player2}</span>
-                    </td>
-                    <td className="text-center py-2.5 px-2 text-ink-muted">{d.oppositeGames}회</td>
-                    <td className="text-center py-2.5 px-2 text-xs">
-                      <span className="text-ink">{d.player1}</span>
-                      <span className="text-ink-muted mx-1">
-                        {d.player1Wins}:{d.oppositeGames - d.player1Wins}
-                      </span>
-                      <span className="text-ink">{d.player2}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
