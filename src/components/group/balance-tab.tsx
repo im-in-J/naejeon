@@ -108,7 +108,7 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
           </button>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {allPlayers.map((player) => {
             const isSelected = selected.has(player.nickname);
             const memberTier = tierOverrides[player.nickname];
