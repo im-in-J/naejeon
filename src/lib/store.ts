@@ -9,14 +9,17 @@ import { v4 as uuid } from "uuid";
 const GROUP_NAME = "컴학내전";
 
 // 수집기가 올린 과거 데이터 정규화: 영문 챔피언 이름 → 한글, PlayerN 폴백 닉네임 → youuuuu,
-// 부정확한 라이엇 포지션 → 로비 순서 기반 라인
+// 부정확한 라이엇 포지션 → 로비 순서 기반 라인.
+// MVP 점수는 산정식이 바뀌어도 과거 경기에 동일하게 적용되도록 읽을 때마다 재계산
 function normalizePlayers(players: PlayerStat[]): PlayerStat[] {
-  return assignLanesByOrder(
-    players.map((p) => ({
-      ...p,
-      nickname: normalizeNickname(p.nickname),
-      champion: normalizeChampionName(p.champion),
-    }))
+  return calculateMvpScores(
+    assignLanesByOrder(
+      players.map((p) => ({
+        ...p,
+        nickname: normalizeNickname(p.nickname),
+        champion: normalizeChampionName(p.champion),
+      }))
+    )
   );
 }
 
