@@ -479,46 +479,47 @@ export interface Award {
   value: string;
 }
 
+// 개인 타이틀 최소 경기 수
+const AWARD_MIN_GAMES = 15;
+
 export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[] {
   const awards: Award[] = [];
   if (playerStats.length === 0) return awards;
 
-  const qualified = playerStats.filter((e) => e.gamesPlayed >= 2);
+  // 개인 타이틀은 15판 이상 뛴 선수만 대상
+  const qualified = playerStats.filter((e) => e.gamesPlayed >= AWARD_MIN_GAMES);
+  const qualifiedSet = new Set(qualified.map((e) => e.nickname));
 
-  const mostMvp = [...playerStats].sort((a, b) => b.mvpCount - a.mvpCount)[0];
-  if (mostMvp.mvpCount > 0)
+  const mostMvp = [...qualified].sort((a, b) => b.mvpCount - a.mvpCount)[0];
+  if (mostMvp && mostMvp.mvpCount > 0)
     awards.push({ title: "MVP 헌터", emoji: "🏆", player: mostMvp.nickname, value: `${mostMvp.mvpCount}회` });
 
-  const bestKda = [...qualified].sort((a, b) => b.avgKda - a.avgKda)[0];
-  if (bestKda)
-    awards.push({ title: "KDA 장인", emoji: "⚔️", player: bestKda.nickname, value: `${bestKda.avgKda.toFixed(2)}` });
-
-  const bestWr = playerStats.filter((e) => e.gamesPlayed >= 3).sort((a, b) => b.winRate - a.winRate)[0];
+  const bestWr = [...qualified].sort((a, b) => b.winRate - a.winRate)[0];
   if (bestWr)
-    awards.push({ title: "승리 요정", emoji: "✨", player: bestWr.nickname, value: `${bestWr.winRate.toFixed(0)}%` });
-
-  const mostDeaths = [...playerStats].sort((a, b) => b.totalDeaths - a.totalDeaths)[0];
-  if (mostDeaths && mostDeaths.totalDeaths > 0)
-    awards.push({ title: "공공의 적", emoji: "💀", player: mostDeaths.nickname, value: `${mostDeaths.totalDeaths} 데스` });
+    awards.push({ title: "승률왕", emoji: "✨", player: bestWr.nickname, value: `${bestWr.winRate.toFixed(0)}%` });
 
   const farmKing = [...qualified].sort((a, b) => b.avgCs - a.avgCs)[0];
   if (farmKing)
     awards.push({ title: "농사왕", emoji: "🌾", player: farmKing.nickname, value: `평균 ${Math.round(farmKing.avgCs)} CS` });
 
-  const mostKills = [...playerStats].sort((a, b) => b.totalKills - a.totalKills)[0];
-  if (mostKills && mostKills.totalKills > 0)
-    awards.push({ title: "킬 수집가", emoji: "🗡️", player: mostKills.nickname, value: `${mostKills.totalKills} 킬` });
-
-  const mostGames = [...playerStats].sort((a, b) => b.gamesPlayed - a.gamesPlayed)[0];
+  const mostGames = [...qualified].sort((a, b) => b.gamesPlayed - a.gamesPlayed)[0];
   if (mostGames)
     awards.push({ title: "내전 중독", emoji: "🎮", player: mostGames.nickname, value: `${mostGames.gamesPlayed}판` });
 
-  const bestGold = [...qualified].sort((a, b) => b.avgGold - a.avgGold)[0];
-  if (bestGold)
-    awards.push({ title: "골드 부자", emoji: "💰", player: bestGold.nickname, value: `평균 ${Math.round(bestGold.avgGold).toLocaleString()}` });
+  const ccKing = [...qualified].sort((a, b) => b.avgCcScore - a.avgCcScore)[0];
+  if (ccKing && ccKing.avgCcScore > 0)
+    awards.push({ title: "CC왕", emoji: "⛓️", player: ccKing.nickname, value: `평균 ${ccKing.avgCcScore.toFixed(1)}` });
+
+  const worstVision = [...qualified].sort((a, b) => a.avgVision - b.avgVision)[0];
+  if (worstVision)
+    awards.push({ title: "시야점수 꼴등", emoji: "🙈", player: worstVision.nickname, value: `평균 ${worstVision.avgVision.toFixed(1)}` });
+
+  const worstKp = [...qualified].sort((a, b) => a.avgKillParticipation - b.avgKillParticipation)[0];
+  if (worstKp)
+    awards.push({ title: "킬관여율 꼴등", emoji: "🏝️", player: worstKp.nickname, value: `${worstKp.avgKillParticipation.toFixed(0)}%` });
 
   // 최다 ACE
-  const mostAce = [...playerStats].sort((a, b) => b.aceCount - a.aceCount)[0];
+  const mostAce = [...qualified].sort((a, b) => b.aceCount - a.aceCount)[0];
   if (mostAce && mostAce.aceCount > 0)
     awards.push({ title: "최다 ACE", emoji: "🌟", player: mostAce.nickname, value: `${mostAce.aceCount}회` });
 
@@ -549,11 +550,12 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
     }
   }
 
-  // 베스트 듀오 (같은 팀 승률 최고, 최소 3판)
+  // 베스트 듀오 (같은 팀 승률 최고, 최소 3판, 두 명 모두 15판 이상)
+  const bothQualified = (key: string) => key.split("|||").every((n) => qualifiedSet.has(n));
   let bestDuo: { key: string; wr: number; total: number } | null = null;
   let worstDuo: { key: string; wr: number; total: number } | null = null;
   for (const [key, { wins, total }] of duoMap) {
-    if (total < 3) continue;
+    if (total < 3 || !bothQualified(key)) continue;
     const wr = wins / total;
     if (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total))
       bestDuo = { key, wr, total };
@@ -576,7 +578,7 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   for (const [key, oppGames] of oppMap) {
     const sameGames = duoMap.get(key)?.total || 0;
     const ratio = oppGames / (sameGames + 1);
-    if (oppGames < 3) continue;
+    if (oppGames < 3 || !bothQualified(key)) continue;
     if (!starCrossed || ratio > starCrossed.ratio)
       starCrossed = { key, oppGames, sameGames, ratio };
   }
