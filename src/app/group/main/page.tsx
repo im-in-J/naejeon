@@ -35,6 +35,8 @@ const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "balance", label: "팀 밸런스", icon: <Scale size={16} /> },
 ];
 
+const CACHE_KEY = "naejeon-group-cache-v1";
+
 export default function MainGroupPage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [tab, setTab] = useState<Tab>("players");
@@ -45,9 +47,24 @@ export default function MainGroupPage() {
     const g = await getGroup();
     setGroup(g);
     setLoading(false);
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(g));
+    } catch {
+      // 저장 실패(용량 초과 등)해도 동작에는 지장 없음
+    }
   }, []);
 
   useEffect(() => {
+    // 같은 세션 내 재방문이면 캐시로 즉시 렌더하고, 백그라운드에서 최신 데이터로 갱신
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        setGroup(JSON.parse(cached) as Group);
+        setLoading(false);
+      }
+    } catch {
+      // 캐시 파손 시 무시하고 네트워크 로드
+    }
     loadData();
   }, [loadData]);
 
