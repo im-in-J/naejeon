@@ -134,10 +134,10 @@ export function PlayerStatsTab({
                       {rank === 0 && <Crown size={14} className="text-gold" />}
                       {entry.nickname}
                       {rising.has(entry.nickname) && (
-                        <span className="text-[10px] font-semibold text-win bg-win/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">📈 상승세</span>
+                        <span title="상승세 (최근 폼 상승)" className="text-sm leading-none">🔥</span>
                       )}
                       {falling.has(entry.nickname) && (
-                        <span className="text-[10px] font-semibold text-lose bg-lose/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">📉 하락세</span>
+                        <span title="하락세 (최근 폼 하락)" className="text-sm leading-none">💩</span>
                       )}
                     </div>
                   </td>
