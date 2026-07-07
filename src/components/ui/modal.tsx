@@ -25,21 +25,23 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className={cn(
-        "relative w-full max-w-lg rounded-xl bg-surface-1 border border-hairline p-5",
+        "relative w-full max-w-lg rounded-xl bg-surface-1 border border-hairline flex flex-col max-h-[calc(100vh-2rem)]",
         className
       )}>
         {title && (
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between gap-4 px-5 pt-5 pb-4 shrink-0">
             <h2 className="text-base font-semibold text-ink">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-ink-tertiary hover:text-ink hover:bg-surface-2 transition-fast cursor-pointer"
+              className="p-1 rounded-md text-ink-tertiary hover:text-ink hover:bg-surface-2 transition-fast cursor-pointer shrink-0"
             >
               <X size={16} />
             </button>
           </div>
         )}
-        {children}
+        <div className={cn("overflow-y-auto px-5 pb-5", title ? "pt-0" : "pt-5")}>
+          {children}
+        </div>
       </div>
     </div>
   );

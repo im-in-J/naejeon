@@ -77,10 +77,10 @@ export function PlayerStatsTab({
 
       {/* Leaderboard */}
       <Card className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text-muted text-xs border-b border-border bg-bg-secondary/50">
+            <thead className="sticky top-0 z-10 bg-bg-secondary">
+              <tr className="text-text-muted text-xs border-b border-border">
                 <th className="text-center py-3 px-2 w-10">#</th>
                 <th className="text-left py-3 px-3">플레이어</th>
                 <SortTh label="경기" sortKey="gamesPlayed" />
