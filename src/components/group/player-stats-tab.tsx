@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Crown } from "lucide-react";
-import type { PlayerStats, Award } from "@/lib/stats";
+import { rankMomentum, type PlayerStats, type Award } from "@/lib/stats";
 
 type SortKey =
   | "totalScore" | "winRate" | "avgKda" | "csPerMin" | "avgVision"
@@ -14,6 +14,31 @@ type SortKey =
 const MULTIKILL_LABEL: Record<number, string> = {
   2: "더블킬", 3: "트리플킬", 4: "쿼드라킬", 5: "펜타킬",
 };
+
+// 정렬 가능한 헤더 셀 (렌더마다 재생성되지 않도록 컴포넌트 밖에 정의)
+function SortTh({
+  label, sortKey, title, sortBy, sortAsc, onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  title?: string;
+  sortBy: SortKey;
+  sortAsc: boolean;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <th
+      className="text-center py-3 px-2 cursor-pointer select-none hover:text-ink transition-fast whitespace-nowrap"
+      title={title}
+      onClick={() => onSort(sortKey)}
+    >
+      {label}
+      <span className={`ml-0.5 text-[9px] ${sortBy === sortKey ? "text-primary" : "text-transparent"}`}>
+        {sortBy === sortKey && sortAsc ? "▲" : "▼"}
+      </span>
+    </th>
+  );
+}
 
 export function PlayerStatsTab({
   playerStats,
@@ -41,34 +66,9 @@ export function PlayerStatsTab({
   });
 
   // 상승세/하락세: 최근 폼 추세(momentum) 상위 3명씩만 표기
-  const rising = new Set(
-    playerStats
-      .filter((p) => p.momentum != null && p.momentum > 0)
-      .sort((a, b) => (b.momentum as number) - (a.momentum as number))
-      .slice(0, 3)
-      .map((p) => p.nickname)
-  );
-  const falling = new Set(
-    playerStats
-      .filter((p) => p.momentum != null && p.momentum < 0)
-      .sort((a, b) => (a.momentum as number) - (b.momentum as number))
-      .slice(0, 3)
-      .map((p) => p.nickname)
-  );
+  const { rising, falling } = rankMomentum(playerStats, 3);
 
-
-  const SortTh = ({ label, sortKey, title }: { label: string; sortKey: SortKey; title?: string }) => (
-    <th
-      className="text-center py-3 px-2 cursor-pointer select-none hover:text-ink transition-fast whitespace-nowrap"
-      title={title}
-      onClick={() => handleSort(sortKey)}
-    >
-      {label}
-      <span className={`ml-0.5 text-[9px] ${sortBy === sortKey ? "text-primary" : "text-transparent"}`}>
-        {sortBy === sortKey && sortAsc ? "▲" : "▼"}
-      </span>
-    </th>
-  );
+  const thProps = { sortBy, sortAsc, onSort: handleSort };
 
   return (
     <div className="space-y-6">
@@ -102,15 +102,16 @@ export function PlayerStatsTab({
               <tr className="text-text-muted text-xs border-b border-border">
                 <th className="text-center py-3 px-2 w-10">#</th>
                 <th className="text-left py-3 px-3">플레이어</th>
-                <SortTh label="경기" sortKey="gamesPlayed" />
-                <SortTh label="승률" sortKey="winRate" />
-                <SortTh label="KDA" sortKey="avgKda" />
-                <SortTh label="분당 CS" sortKey="csPerMin" />
-                <SortTh label="시야점수" sortKey="avgVision" />
-                <SortTh label="킬관여율" sortKey="avgKillParticipation" />
-                <SortTh label="골드당 딜" sortKey="damagePerGold" />
-                <SortTh label="MVP/ACE" sortKey="mvpCount" />
+                <SortTh {...thProps} label="경기" sortKey="gamesPlayed" />
+                <SortTh {...thProps} label="승률" sortKey="winRate" />
+                <SortTh {...thProps} label="KDA" sortKey="avgKda" />
+                <SortTh {...thProps} label="분당 CS" sortKey="csPerMin" />
+                <SortTh {...thProps} label="시야점수" sortKey="avgVision" />
+                <SortTh {...thProps} label="킬관여율" sortKey="avgKillParticipation" />
+                <SortTh {...thProps} label="골드당 딜" sortKey="damagePerGold" />
+                <SortTh {...thProps} label="MVP/ACE" sortKey="mvpCount" />
                 <SortTh
+                  {...thProps}
                   label="점수"
                   sortKey="totalScore"
                   title="그룹 내 백분위 가중합 (0~100): 승률(판수 보정) 30% + MVP/ACE 15% + KDA 10% + 킬관여 10% + 분당CS 10% + 시야 10% + 골드당 딜 10% + 판수 5%, 판수가 적으면 신뢰도 계수로 감점"

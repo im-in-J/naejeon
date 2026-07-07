@@ -9,7 +9,7 @@ import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { buildRadarStats } from "@/lib/stats";
-import { Save, Edit3, User, X, Link, Trash2, PenLine, Search } from "lucide-react";
+import { Save, Edit3, User, X, Link, Trash2, Search } from "lucide-react";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
 

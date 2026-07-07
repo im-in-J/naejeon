@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, Save, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Save } from "lucide-react";
 import type { PlayerStat, Lane } from "@/lib/types";
 
-const EMPTY_PLAYER = (team: "blue" | "red", i: number): Partial<PlayerStat> => ({
+const EMPTY_PLAYER = (team: "blue" | "red"): Partial<PlayerStat> => ({
   nickname: "", champion: "", team, win: false, lane: undefined,
   kills: 0, deaths: 0, assists: 0, cs: 0, gold: 0,
   damageDealt: 0, damageTaken: 0, visionScore: 0,
@@ -29,8 +29,8 @@ export default function NewMatchPage() {
   const [gameDuration, setGameDuration] = useState("");
   const [blueWin, setBlueWin] = useState(true);
   const [players, setPlayers] = useState<Partial<PlayerStat>[]>([
-    ...Array.from({ length: 5 }, (_, i) => EMPTY_PLAYER("blue", i)),
-    ...Array.from({ length: 5 }, (_, i) => EMPTY_PLAYER("red", i)),
+    ...Array.from({ length: 5 }, () => EMPTY_PLAYER("blue")),
+    ...Array.from({ length: 5 }, () => EMPTY_PLAYER("red")),
   ]);
   const [saving, setSaving] = useState(false);
 

@@ -2,26 +2,11 @@
 
 import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import { buildTeamSideStats, type DuoRecord } from "@/lib/stats";
+import { buildTeamSideStats, capDuosPerPlayer, type DuoRecord } from "@/lib/stats";
 import type { Group } from "@/lib/types";
 
 const TOP_N = 7;
 const CAP = 2; // 한 사람이 한 분류에 최대 2개까지만 등장
-
-// 게임 수 많은 사람이 목록을 독점하지 않도록 한 사람당 최대 max개 엔트리만 선정
-function capPerPlayer(list: DuoRecord[], max = CAP): DuoRecord[] {
-  const count = new Map<string, number>();
-  const out: DuoRecord[] = [];
-  for (const d of list) {
-    const c1 = count.get(d.player1) || 0;
-    const c2 = count.get(d.player2) || 0;
-    if (c1 >= max || c2 >= max) continue;
-    count.set(d.player1, c1 + 1);
-    count.set(d.player2, c2 + 1);
-    out.push(d);
-  }
-  return out;
-}
 
 // 같은 팀 듀오 테이블 (베스트/워스트 공용)
 function SameTeamDuoTable({ duos }: { duos: DuoRecord[] }) {
@@ -74,20 +59,23 @@ function SameTeamDuoTable({ duos }: { duos: DuoRecord[] }) {
 export function DuoTab({ group }: { group: Group }) {
   const duos = useMemo(() => buildTeamSideStats(group).duos, [group]);
 
-  const bestDuos = capPerPlayer(
+  const bestDuos = capDuosPerPlayer(
     duos
       .filter((d) => d.sameTeamGames >= 5)
-      .sort((a, b) => b.sameTeamWinRate - a.sameTeamWinRate || b.sameTeamGames - a.sameTeamGames)
+      .sort((a, b) => b.sameTeamWinRate - a.sameTeamWinRate || b.sameTeamGames - a.sameTeamGames),
+    CAP
   ).slice(0, TOP_N);
 
-  const worstDuos = capPerPlayer(
+  const worstDuos = capDuosPerPlayer(
     duos
       .filter((d) => d.sameTeamGames >= 5)
-      .sort((a, b) => a.sameTeamWinRate - b.sameTeamWinRate || b.sameTeamGames - a.sameTeamGames)
+      .sort((a, b) => a.sameTeamWinRate - b.sameTeamWinRate || b.sameTeamGames - a.sameTeamGames),
+    CAP
   ).slice(0, TOP_N);
 
-  const rivals = capPerPlayer(
-    duos.filter((d) => d.oppositeGames >= 2).sort((a, b) => b.oppositeGames - a.oppositeGames)
+  const rivals = capDuosPerPlayer(
+    duos.filter((d) => d.oppositeGames >= 2).sort((a, b) => b.oppositeGames - a.oppositeGames),
+    CAP
   ).slice(0, TOP_N);
 
   return (

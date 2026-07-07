@@ -4,6 +4,13 @@ import {
   buildChampionStats,
   buildTeamSideStats,
   computeAwards,
+  rankMomentum,
+  capDuosPerPlayer,
+  getBalancerPlayers,
+  balanceTeams,
+  buildRadarStats,
+  type PlayerStats,
+  type DuoRecord,
 } from "./stats";
 import type { Group, Match, PlayerStat } from "./types";
 
@@ -84,8 +91,8 @@ describe("buildPlayerStats", () => {
     expect(Number.isFinite(a.avgKda)).toBe(true);
   });
 
-  it("momentum is null when player has fewer than 8 games", () => {
-    const g = group(Array.from({ length: 7 }, () => duel("A", "B", true)));
+  it("momentum is null when player has fewer than 10 games", () => {
+    const g = group(Array.from({ length: 9 }, () => duel("A", "B", true)));
     const a = buildPlayerStats(g).find((p) => p.nickname === "A")!;
     expect(a.momentum).toBeNull();
   });
@@ -235,5 +242,122 @@ describe("buildTeamSideStats", () => {
     // player1 is alphabetically first (Anna), who won both head-to-heads
     expect(annaCara.player1).toBe("Anna");
     expect(annaCara.player1Wins).toBe(2);
+  });
+});
+
+// ─── chronological robustness ───
+
+describe("chronological ordering", () => {
+  it("momentum is computed by createdAt order even if match array is shuffled", () => {
+    // Build 10 chronological matches: first 5 wins, last 5 losses → momentum -100
+    const chrono = [
+      ...Array.from({ length: 5 }, () => duel("A", "B", true)),
+      ...Array.from({ length: 5 }, () => duel("A", "B", false)),
+    ];
+    // Feed them to the group in reversed array order; createdAt still encodes real order
+    const shuffled = [...chrono].reverse();
+    const a = buildPlayerStats(group(shuffled)).find((p) => p.nickname === "A")!;
+    expect(a.momentum).toBeCloseTo(-100, 5);
+  });
+});
+
+// ─── rankMomentum ───
+
+function player(nickname: string, momentum: number | null): PlayerStats {
+  return { nickname, momentum } as PlayerStats;
+}
+
+describe("rankMomentum", () => {
+  it("splits top-N rising and falling, excluding null and zero momentum", () => {
+    const players = [
+      player("up1", 30),
+      player("up2", 20),
+      player("up3", 10),
+      player("up4", 5),
+      player("flat", 0),
+      player("na", null),
+      player("down1", -40),
+      player("down2", -25),
+    ];
+    const { rising, falling } = rankMomentum(players, 3);
+    expect([...rising]).toEqual(["up1", "up2", "up3"]); // up4 dropped by topN
+    expect(rising.has("flat")).toBe(false);
+    expect(rising.has("na")).toBe(false);
+    expect([...falling]).toEqual(["down1", "down2"]);
+    // rising and falling never overlap
+    for (const n of rising) expect(falling.has(n)).toBe(false);
+  });
+});
+
+// ─── capDuosPerPlayer ───
+
+function duo(p1: string, p2: string): DuoRecord {
+  return { player1: p1, player2: p2, sameTeamGames: 0, sameTeamWins: 0, sameTeamWinRate: 0, oppositeGames: 0, player1Wins: 0 };
+}
+
+describe("capDuosPerPlayer", () => {
+  it("limits each player to at most `max` entries, preserving input order", () => {
+    const list = [duo("A", "B"), duo("A", "C"), duo("A", "D"), duo("E", "F")];
+    const capped = capDuosPerPlayer(list, 2);
+    // A appears in A-B and A-C, then A-D is dropped (A hit cap 2)
+    expect(capped).toHaveLength(3);
+    expect(capped.map((d) => [d.player1, d.player2].join())).toEqual(["A,B", "A,C", "E,F"]);
+  });
+});
+
+// ─── team-side hardening ───
+
+describe("buildTeamSideStats hardening", () => {
+  it("does not credit a win to either side for a malformed match (no winning team)", () => {
+    const good = match([ps({ nickname: "A", team: "blue", win: true }), ps({ nickname: "C", team: "red", win: false })]);
+    // both teams marked as not winning (corrupt data)
+    const bad = match([ps({ nickname: "A", team: "blue", win: false }), ps({ nickname: "C", team: "red", win: false })]);
+    const { overall } = buildTeamSideStats(group([good, bad]));
+    const blue = overall.find((o) => o.team === "blue")!;
+    const red = overall.find((o) => o.team === "red")!;
+    expect(blue.wins).toBe(1); // only the good match
+    expect(red.wins).toBe(0); // malformed match not miscredited to red
+  });
+});
+
+// ─── balancer & radar smoke coverage ───
+
+describe("getBalancerPlayers + balanceTeams", () => {
+  it("produces a near-even split for symmetric players", () => {
+    const matches = [];
+    for (const name of ["A", "B", "C", "D"]) {
+      for (let i = 0; i < 5; i++) matches.push(duel(name, "Foe", i % 2 === 0));
+    }
+    const stats = buildPlayerStats(group(matches)).filter((p) => p.nickname !== "Foe");
+    const bp = getBalancerPlayers(stats, {}, {});
+    expect(bp.length).toBe(4);
+    const result = balanceTeams(bp)!;
+    expect(result).not.toBeNull();
+    expect(result.team1.length).toBe(2);
+    expect(result.team2.length).toBe(2);
+    expect(result.diff).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns null when player count is out of range", () => {
+    expect(balanceTeams([])).toBeNull();
+  });
+});
+
+describe("buildRadarStats", () => {
+  it("returns percentile axes within 0..100 for players with enough games", () => {
+    const matches = Array.from({ length: 4 }, (_, i) =>
+      match([
+        ps({ nickname: "A", team: "blue", win: true, kills: 5 + i, cs: 200, gold: 12000, visionScore: 30, deaths: 2, damageDealt: 20000 }),
+        ps({ nickname: "B", team: "red", win: false, kills: 1, cs: 100, gold: 8000, visionScore: 10, deaths: 5, damageDealt: 8000 }),
+      ])
+    );
+    const radar = buildRadarStats(group(matches));
+    const a = radar.get("A");
+    if (a) {
+      for (const v of [a.goldDiff, a.combat, a.growth, a.vision, a.survival]) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(100);
+      }
+    }
   });
 });

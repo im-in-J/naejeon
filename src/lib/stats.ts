@@ -1,5 +1,10 @@
 import type { Group, PlayerStat, Lane } from "./types";
 
+// createdAt(ISO 문자열) 오름차순 비교 — 시간순에 의존하는 로직의 안정성 확보용
+function byCreatedAt<T extends { createdAt: string }>(a: T, b: T): number {
+  return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+}
+
 // ─── Player Stats ───
 
 export interface PlayerStats {
@@ -34,7 +39,7 @@ export interface PlayerStats {
   champions: ChampionUsage[];
   laneStats: LaneUsage[];
   recentMatches: { win: boolean; date: string }[];
-  momentum: number | null; // 최근 5경기 승률 − 그 이전 승률 (표본 부족 시 null)
+  momentum: number | null; // 최근 5경기 승률 − 그 이전 승률 (10경기 미만이면 null)
 }
 
 export interface LaneUsage {
@@ -61,7 +66,9 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
   const minutesMap = new Map<string, number>(); // nickname → 총 플레이 시간(분)
   const kpMap = new Map<string, number[]>(); // nickname → 경기별 킬관여율
 
-  for (const match of group.matches) {
+  // 최근 폼(momentum)·최근 전적이 시간순에 의존하므로 createdAt 기준으로 정렬해서 집계
+  const orderedMatches = [...group.matches].sort(byCreatedAt);
+  for (const match of orderedMatches) {
     const minutes = parseDurationMinutes(match.gameDuration);
     const teamKills = { blue: 0, red: 0 };
     for (const p of match.players) teamKills[p.team] += p.kills;
@@ -84,9 +91,10 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
       const wins = stats.filter((s) => s.win).length;
       const losses = stats.length - wins;
 
-      // 최근 폼 추세: 최근 5경기 승률 − 그 이전 경기 승률 (표본 8경기 이상일 때만)
+      // 최근 폼 추세: 최근 5경기 승률 − 그 이전 경기 승률
+      // (표본 10경기 이상일 때만 산정 → 비교군(prior)도 최소 5경기 확보해 노이즈 완화)
       let momentum: number | null = null;
-      if (stats.length >= 8) {
+      if (stats.length >= 10) {
         const recent = stats.slice(-5);
         const prior = stats.slice(0, -5);
         const recentWR = (recent.filter((s) => s.win).length / recent.length) * 100;
@@ -267,6 +275,32 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
   });
 
   return results.sort((a, b) => b.totalScore - a.totalScore);
+}
+
+/**
+ * 최근 폼(momentum) 기준 상승세/하락세 상위 topN 명을 분류.
+ * momentum이 null(표본 부족)이거나 0인 선수는 어느 쪽에도 포함되지 않는다.
+ */
+export function rankMomentum(
+  players: PlayerStats[],
+  topN = 3
+): { rising: Set<string>; falling: Set<string> } {
+  const withMomentum = players.filter((p) => p.momentum != null);
+  const rising = new Set(
+    withMomentum
+      .filter((p) => (p.momentum as number) > 0)
+      .sort((a, b) => (b.momentum as number) - (a.momentum as number))
+      .slice(0, topN)
+      .map((p) => p.nickname)
+  );
+  const falling = new Set(
+    withMomentum
+      .filter((p) => (p.momentum as number) < 0)
+      .sort((a, b) => (a.momentum as number) - (b.momentum as number))
+      .slice(0, topN)
+      .map((p) => p.nickname)
+  );
+  return { rising, falling };
 }
 
 // ─── Radar Stats (5각 스탯) ───
@@ -501,7 +535,7 @@ export function computeAwards(group: Group): Award[] {
   if (group.matches.length === 0) return awards;
 
   // 최근 20경기만 기준으로 어워즈 산정 (경기가 쌓일수록 계속 갱신됨)
-  const recentMatches = group.matches.slice(-AWARD_RECENT_WINDOW);
+  const recentMatches = [...group.matches].sort(byCreatedAt).slice(-AWARD_RECENT_WINDOW);
   const windowGroup: Group = { ...group, matches: recentMatches };
   const playerStats = buildPlayerStats(windowGroup);
   if (playerStats.length === 0) return awards;
@@ -758,8 +792,9 @@ export function buildTeamSideStats(group: Group) {
   for (const m of group.matches) {
     const blue = m.players.filter((p) => p.team === "blue");
     const red = m.players.filter((p) => p.team === "red");
+    // 승리 팀을 각 팀 기준으로 명시적으로 판정 (데이터 이상 경기는 어느 쪽으로도 집계하지 않음)
     if (blue.length > 0 && blue[0].win) blueWins++;
-    else redWins++;
+    else if (red.length > 0 && red[0].win) redWins++;
     blueKillsTotal += blue.reduce((s, p) => s + p.kills, 0);
     redKillsTotal += red.reduce((s, p) => s + p.kills, 0);
     blueDeathsTotal += blue.reduce((s, p) => s + p.deaths, 0);
@@ -908,4 +943,23 @@ export function buildTeamSideStats(group: Group) {
     .sort((a, b) => b.sameTeamGames - a.sameTeamGames);
 
   return { overall, players, champions, duos };
+}
+
+/**
+ * 한 사람이 한 목록에 최대 max번만 등장하도록 제한한다.
+ * (게임 수 많은 선수가 순위표를 독점하지 않도록)
+ * 입력 list는 이미 원하는 순서로 정렬되어 있다고 가정한다.
+ */
+export function capDuosPerPlayer(list: DuoRecord[], max: number): DuoRecord[] {
+  const count = new Map<string, number>();
+  const out: DuoRecord[] = [];
+  for (const d of list) {
+    const c1 = count.get(d.player1) || 0;
+    const c2 = count.get(d.player2) || 0;
+    if (c1 >= max || c2 >= max) continue;
+    count.set(d.player1, c1 + 1);
+    count.set(d.player2, c2 + 1);
+    out.push(d);
+  }
+  return out;
 }

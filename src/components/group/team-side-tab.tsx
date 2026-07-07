@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { buildTeamSideStats, type PlayerTeamSide, type ChampionTeamSide, type TeamSideOverall } from "@/lib/stats";
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Group } from "@/lib/types";

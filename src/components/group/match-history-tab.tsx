@@ -8,10 +8,6 @@ import { ChevronRight, Trash2, Gamepad2, Clock, Trophy, Download } from "lucide-
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { Match } from "@/lib/types";
 
-const LANE_EMOJI: Record<string, string> = {
-  top: "🛡️", jungle: "🌿", mid: "🔥", adc: "🏹", support: "💚",
-};
-
 export function MatchHistoryTab({
   matches,
   groupId,
@@ -69,7 +65,6 @@ export function MatchHistoryTab({
               <MatchCard
                 key={match.id}
                 match={match}
-                groupId={groupId}
                 onDelete={onDelete}
                 onClick={() => router.push(`/group/${groupId}/match/${match.id}`)}
               />
@@ -83,12 +78,10 @@ export function MatchHistoryTab({
 
 function MatchCard({
   match,
-  groupId,
   onDelete,
   onClick,
 }: {
   match: Match;
-  groupId: string;
   onDelete: (matchId: string) => void;
   onClick: () => void;
 }) {
@@ -217,9 +210,6 @@ function PlayerRow({
   isMvp: boolean;
   isAce: boolean;
 }) {
-  const lane = player.lane ? LANE_EMOJI[player.lane] : "";
-  const kda = `${player.kills}/${player.deaths}/${player.assists}`;
-
   const kdaColor = player.deaths === 0
     ? "text-win"
     : (player.kills + player.assists) / player.deaths >= 3

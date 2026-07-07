@@ -47,6 +47,17 @@ export default function MainGroupPage() {
   const [showManual, setShowManual] = useState(false);
 
   const loadData = useCallback(async () => {
+    // 같은 세션 내 재방문이면 캐시로 즉시 렌더한 뒤, 네트워크로 최신 데이터를 덮어쓴다.
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        setGroup(JSON.parse(cached) as Group);
+        setLoading(false);
+      }
+    } catch {
+      // 캐시 파손 시 무시하고 네트워크 로드
+    }
+
     const g = await getGroup();
     setGroup(g);
     setLoading(false);
@@ -58,16 +69,10 @@ export default function MainGroupPage() {
   }, []);
 
   useEffect(() => {
-    // 같은 세션 내 재방문이면 캐시로 즉시 렌더하고, 백그라운드에서 최신 데이터로 갱신
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        setGroup(JSON.parse(cached) as Group);
-        setLoading(false);
-      }
-    } catch {
-      // 캐시 파손 시 무시하고 네트워크 로드
-    }
+    // 마운트 시 1회 데이터 로드. loadData는 캐시 즉시 렌더 후 네트워크로 최신화하는
+    // 비동기 로더로, 이 페이지의 유일한 진입점이라 cascading render 우려가 없다.
+    // (SSR 안전을 위해 캐시/네트워크 접근은 반드시 마운트 이후에만 실행)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 

@@ -27,6 +27,9 @@ export function ChampionIcon({ name, size = 28, className }: ChampionIconProps) 
   }
 
   return (
+    // 원격 CDN(Data Dragon)에서 오는 소형 아이콘(28~48px)이고 실패 시 이니셜로 폴백하는
+    // 커스텀 onError 처리가 필요해 next/image 대신 <img>를 의도적으로 사용한다.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt={name}
