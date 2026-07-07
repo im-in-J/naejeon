@@ -307,10 +307,11 @@ export function rankMomentum(
 
 export interface LaneRankEntry {
   nickname: string;
-  games: number;
+  games: number; // 해당 라인 경기 수
   wins: number;
-  winRate: number;
-  avgKda: number;
+  winRate: number; // 해당 라인 승률
+  avgKda: number; // 해당 라인 KDA
+  score: number; // 선수별 성적의 종합 점수(totalScore, 그룹 내 백분위 가중합 0~100)
 }
 
 export interface LaneRanking {
@@ -318,16 +319,16 @@ export interface LaneRanking {
   entries: LaneRankEntry[];
 }
 
-// 라인별 순위에 오르기 위한 최소 경기 수 (1~2판 표본은 순위에서 제외)
+// 라인별 순위에 오르기 위한 최소 경기 수 (1판 표본은 순위에서 제외)
 export const LANE_RANK_MIN_GAMES = 2;
 
 const LANE_ORDER: Lane[] = ["top", "jungle", "mid", "adc", "support"];
 
 /**
  * 포지션(라인)별 선수 순위. 각 라인에서 minGames 이상 플레이한 선수를
- * 승률 내림차순(동률 시 판수 → KDA)으로 정렬한다. 정렬 기준이 화면에 보이는
- * 값(승률·판수·KDA)과 일치하도록 숨은 복합 점수는 쓰지 않는다.
- * 라인 순서는 탑→정글→미드→원딜→서폿 고정.
+ * 선수별 성적 탭과 동일한 종합 점수(totalScore, 그룹 내 백분위 가중합)로
+ * 내림차순 정렬한다. 점수는 화면에도 표시해 순서 근거가 드러나게 한다.
+ * (동률 시 해당 라인 승률 → 판수) 라인 순서는 탑→정글→미드→원딜→서폿 고정.
  */
 export function buildLaneRankings(
   players: PlayerStats[],
@@ -344,10 +345,11 @@ export function buildLaneRankings(
           wins: ls.wins,
           winRate: ls.winRate,
           avgKda: ls.avgKda,
+          score: p.totalScore,
         };
       })
       .filter((e): e is LaneRankEntry => e !== null)
-      .sort((a, b) => b.winRate - a.winRate || b.games - a.games || b.avgKda - a.avgKda);
+      .sort((a, b) => b.score - a.score || b.winRate - a.winRate || b.games - a.games);
     return { lane, entries };
   });
 }

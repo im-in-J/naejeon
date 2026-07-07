@@ -391,21 +391,28 @@ describe("buildLaneRankings", () => {
     expect(jungle.entries).toHaveLength(0); // nobody played jungle
   });
 
-  it("sorts strictly by win rate — displayed order matches the winRate column", () => {
-    // HighWR: 2 mid games, both won (100%); LowWR: 4 mid games, 3 wins (75%)
-    const matches = [
-      ...Array.from({ length: 2 }, () =>
-        match([ps({ nickname: "HighWR", team: "blue", win: true, lane: "mid" }), ps({ nickname: "z", team: "red", win: false, lane: "mid" })])
-      ),
-      ...Array.from({ length: 3 }, () =>
-        match([ps({ nickname: "LowWR", team: "blue", win: true, lane: "mid" }), ps({ nickname: "z", team: "red", win: false, lane: "mid" })])
-      ),
-      match([ps({ nickname: "LowWR", team: "blue", win: false, lane: "mid" }), ps({ nickname: "z", team: "red", win: true, lane: "mid" })]),
-    ];
-    const mid = buildLaneRankings(buildPlayerStats(group(matches))).find((r) => r.lane === "mid")!;
+  it("ranks by the player's overall score (totalScore) and exposes that score", () => {
+    const matches = Array.from({ length: 4 }, () =>
+      match([
+        ps({ nickname: "Strong", team: "blue", win: true, lane: "mid", kills: 10, deaths: 1, assists: 8 }),
+        ps({ nickname: "Weak", team: "red", win: false, lane: "mid", kills: 1, deaths: 8, assists: 1 }),
+      ])
+    );
+    const stats = buildPlayerStats(group(matches));
+    const mid = buildLaneRankings(stats).find((r) => r.lane === "mid")!;
+
+    // entries are sorted by score descending
+    for (let i = 1; i < mid.entries.length; i++) {
+      expect(mid.entries[i - 1].score).toBeGreaterThanOrEqual(mid.entries[i].score);
+    }
+    // each entry's score equals that player's leaderboard totalScore
+    for (const e of mid.entries) {
+      const p = stats.find((s) => s.nickname === e.nickname)!;
+      expect(e.score).toBeCloseTo(p.totalScore, 5);
+    }
+    // the stronger overall player ranks first
     const names = mid.entries.map((e) => e.nickname);
-    // HighWR (100%, 2 games) ranks above LowWR (75%, 4 games) despite fewer games
-    expect(names.indexOf("HighWR")).toBeLessThan(names.indexOf("LowWR"));
+    expect(names.indexOf("Strong")).toBeLessThan(names.indexOf("Weak"));
   });
 
   it("excludes players below the minimum games threshold (default 2)", () => {

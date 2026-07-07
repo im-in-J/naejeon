@@ -25,7 +25,7 @@ export function LaneRankingTab({ playerStats }: { playerStats: PlayerStats[] }) 
     <div className="space-y-3">
       <p className="text-xs text-ink-tertiary">
         각 라인을 <span className="text-ink-subtle">{LANE_RANK_MIN_GAMES}판 이상</span> 플레이한 선수를{" "}
-        <span className="text-ink-subtle">승률순</span>으로 정렬합니다 (동률 시 판수 → KDA). 라인은 로비 순서 기준으로 배정됩니다.
+        <span className="text-ink-subtle">종합 점수</span>(선수별 성적의 그룹 내 백분위 점수)순으로 정렬합니다. 라인은 로비 순서 기준으로 배정됩니다.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -50,23 +50,18 @@ export function LaneRankingTab({ playerStats }: { playerStats: PlayerStats[] }) 
                       <span className={`w-5 text-center text-xs font-bold shrink-0 ${rankColor(rank)}`}>
                         {rank + 1}
                       </span>
-                      <span className="flex-1 min-w-0 truncate text-sm font-medium text-ink">
-                        {e.nickname}
-                      </span>
-                      <span className="text-[11px] text-ink-tertiary shrink-0">{e.games}판</span>
-                      <span
-                        className={`text-xs font-semibold w-10 text-right shrink-0 ${
-                          e.winRate >= 55 ? "text-win" : e.winRate < 45 ? "text-lose" : "text-ink-muted"
-                        }`}
-                      >
-                        {e.winRate.toFixed(0)}%
-                      </span>
-                      <span
-                        className={`text-xs w-12 text-right shrink-0 ${
-                          e.avgKda >= 3.5 ? "text-win/80" : e.avgKda < 2 ? "text-lose/70" : "text-ink-subtle"
-                        }`}
-                      >
-                        {e.avgKda.toFixed(2)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-ink truncate">{e.nickname}</div>
+                        <div className="text-[11px] text-ink-tertiary">
+                          {e.games}판 ·{" "}
+                          <span className={e.winRate >= 55 ? "text-win" : e.winRate < 45 ? "text-lose" : "text-ink-subtle"}>
+                            {e.winRate.toFixed(0)}%
+                          </span>{" "}
+                          · KDA {e.avgKda.toFixed(2)}
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-primary tabular-nums shrink-0" title="종합 점수">
+                        {e.score.toFixed(1)}
                       </span>
                     </div>
                   ))}
