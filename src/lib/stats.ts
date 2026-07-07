@@ -303,6 +303,56 @@ export function rankMomentum(
   return { rising, falling };
 }
 
+// ─── Lane Rankings (포지션별 순위) ───
+
+export interface LaneRankEntry {
+  nickname: string;
+  games: number;
+  wins: number;
+  winRate: number;
+  avgKda: number;
+  score: number; // 판수 보정 승률 + KDA 가중 (정렬용)
+}
+
+export interface LaneRanking {
+  lane: Lane;
+  entries: LaneRankEntry[];
+}
+
+const LANE_ORDER: Lane[] = ["top", "jungle", "mid", "adc", "support"];
+
+// 라인 순위 점수: 판수 보정 승률 60% + KDA 점수(8.0 cap) 40%
+function laneRankScore(ls: LaneUsage): number {
+  const smoothedWR = ((ls.wins + 2.5) / (ls.games + 5)) * 100;
+  const kdaScore = (Math.min(ls.avgKda, 8) / 8) * 100;
+  return smoothedWR * 0.6 + kdaScore * 0.4;
+}
+
+/**
+ * 포지션(라인)별 선수 순위. 각 라인에서 minGames 이상 플레이한 선수를
+ * 판수 보정 점수로 내림차순 정렬한다. 라인 순서는 탑→정글→미드→원딜→서폿 고정.
+ */
+export function buildLaneRankings(players: PlayerStats[], minGames = 1): LaneRanking[] {
+  return LANE_ORDER.map((lane) => {
+    const entries = players
+      .map((p): LaneRankEntry | null => {
+        const ls = p.laneStats.find((l) => l.lane === lane);
+        if (!ls || ls.games < minGames) return null;
+        return {
+          nickname: p.nickname,
+          games: ls.games,
+          wins: ls.wins,
+          winRate: ls.winRate,
+          avgKda: ls.avgKda,
+          score: laneRankScore(ls),
+        };
+      })
+      .filter((e): e is LaneRankEntry => e !== null)
+      .sort((a, b) => b.score - a.score || b.games - a.games);
+    return { lane, entries };
+  });
+}
+
 // ─── Radar Stats (5각 스탯) ───
 // 각 축은 그룹 내 백분위(0~100). 골드차이는 같은 포지션 상대와의
 // 분당 골드 차이 (포지션 정보가 없으면 상대팀 평균 대비로 폴백).

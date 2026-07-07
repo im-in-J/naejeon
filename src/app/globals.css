@@ -63,23 +63,6 @@
   --color-ace: var(--ace);
   --color-gold: var(--gold);
 
-  /* Old aliases for compatibility */
-  --color-bg-primary: var(--canvas);
-  --color-bg-secondary: var(--surface-1);
-  --color-bg-card: var(--surface-1);
-  --color-bg-card-hover: var(--surface-2);
-  --color-bg-input: var(--surface-1);
-  --color-bg-header: var(--canvas);
-  --color-border: var(--hairline);
-  --color-border-hover: var(--hairline-strong);
-  --color-text-primary: var(--ink);
-  --color-text-secondary: var(--ink-muted);
-  --color-text-muted: var(--ink-subtle);
-  --color-accent: var(--primary);
-  --color-accent-hover: var(--primary-hover);
-  --color-accent-dim: rgba(94, 106, 210, 0.12);
-  --color-link: var(--primary-hover);
-
   /* Fonts */
   --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card } from "@/components/ui/card";
+import { StatTable, stickyHead } from "@/components/ui/stat-table";
 import { Modal } from "@/components/ui/modal";
-import { Search } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import type { ChampionStats } from "@/lib/stats";
 
@@ -74,15 +74,12 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-tertiary" />
-          <input
-            className="w-full pl-9 pr-4 py-2 rounded-lg bg-surface-1 border border-hairline text-sm text-ink placeholder:text-ink-tertiary focus:outline-none focus:border-primary/60 transition-fast"
-            placeholder="챔피언 검색..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchInput
+          className="flex-1 max-w-xs"
+          placeholder="챔피언 검색..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <div className="flex items-center gap-1 bg-surface-1 border border-hairline rounded-lg p-0.5">
           <button
             onClick={() => setView("tierlist")}
@@ -151,11 +148,9 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
         </div>
       ) : (
         /* ─── Table View ─── */
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-ink-subtle text-xs border-b border-hairline bg-canvas">
+        <StatTable>
+              <thead className={stickyHead}>
+                <tr className="text-ink-subtle text-xs border-b border-hairline">
                   <th className="text-center py-2.5 px-3 w-12">티어</th>
                   <th className="text-left py-2.5 px-3">챔피언</th>
                   <th className="text-center py-2.5 px-2">판수</th>
@@ -254,9 +249,7 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
                     );
                   })}
               </tbody>
-            </table>
-          </div>
-        </Card>
+        </StatTable>
       )}
 
       {filtered.length === 0 && (

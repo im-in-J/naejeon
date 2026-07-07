@@ -9,7 +9,8 @@ import { updateMemberProfile, mergeAliases, renameMember, deleteMember } from "@
 import { ChampionIcon } from "@/components/ui/champion-icon";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { buildRadarStats } from "@/lib/stats";
-import { Save, Edit3, User, X, Link, Trash2, Search } from "lucide-react";
+import { Save, Edit3, User, X, Link, Trash2 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import type { Group, Member, Lane } from "@/lib/types";
 import type { PlayerStats } from "@/lib/stats";
 
@@ -44,9 +45,9 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 function getTierColor(tier?: string): string {
-  if (!tier) return "text-text-muted";
+  if (!tier) return "text-ink-subtle";
   const base = tier.split(" ")[0];
-  return TIER_COLORS[base] || "text-text-muted";
+  return TIER_COLORS[base] || "text-ink-subtle";
 }
 
 export function PlayerInfoTab({
@@ -159,19 +160,16 @@ export function PlayerInfoTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">
+        <p className="text-sm text-ink-muted">
           선수별 정보를 관리하세요. 티어와 선호 라인은 팀 밸런스에 반영됩니다.
         </p>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-tertiary pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="선수 검색 (닉네임·실명·부캐)"
-              className="w-52 rounded-lg bg-surface-1 border border-hairline pl-8 pr-3 py-1.5 text-sm text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-primary-hover/50 transition-fast"
-            />
-          </div>
+          <SearchInput
+            className="w-56"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="선수 검색 (닉네임·실명·부캐)"
+          />
           <Button variant="secondary" size="sm" onClick={() => setShowMerge(true)}>
             <Link size={14} />
             아이디 통합
@@ -180,7 +178,7 @@ export function PlayerInfoTab({
       </div>
 
       {visiblePlayers.length === 0 && (
-        <p className="text-center py-8 text-text-muted text-sm">&quot;{search}&quot; 검색 결과가 없습니다</p>
+        <p className="text-center py-8 text-ink-subtle text-sm">&quot;{search}&quot; 검색 결과가 없습니다</p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -193,18 +191,18 @@ export function PlayerInfoTab({
                     <ChampionIcon name={player.champions[0].champion} size={36} className="rounded-xl" />
                   </div>
                 ) : (
-                  <div className="w-9 h-9 rounded-xl bg-bg-secondary flex items-center justify-center">
-                    <User size={16} className="text-text-muted" />
+                  <div className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center">
+                    <User size={16} className="text-ink-subtle" />
                   </div>
                 )}
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-text-primary text-sm">{player.nickname}</span>
+                    <span className="font-semibold text-ink text-sm">{player.nickname}</span>
                     {player.realName && (
-                      <span className="text-xs text-text-muted">({player.realName})</span>
+                      <span className="text-xs text-ink-subtle">({player.realName})</span>
                     )}
                   </div>
-                  <div className="text-xs text-text-muted">
+                  <div className="text-xs text-ink-subtle">
                     {player.gamesPlayed}판 · 승률 {player.winRate.toFixed(0)}%
                   </div>
                 </div>
@@ -214,7 +212,7 @@ export function PlayerInfoTab({
                   const member = group.members.find((m) => m.nickname === player.nickname);
                   if (member) openEdit(member);
                 }}
-                className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-fast cursor-pointer"
+                className="p-1.5 rounded-lg text-ink-subtle hover:text-primary hover:bg-primary/10 transition-fast cursor-pointer"
               >
                 <Edit3 size={14} />
               </button>
@@ -223,10 +221,10 @@ export function PlayerInfoTab({
             {/* Aliases */}
             {player.aliases && player.aliases.length > 0 && (
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-text-muted w-12">부캐</span>
+                <span className="text-xs text-ink-subtle w-12">부캐</span>
                 <div className="flex flex-wrap gap-1">
                   {player.aliases.map((alias) => (
-                    <span key={alias} className="text-xs px-1.5 py-0.5 rounded bg-bg-secondary text-text-secondary">
+                    <span key={alias} className="text-xs px-1.5 py-0.5 rounded bg-surface-1 text-ink-muted">
                       {alias}
                     </span>
                   ))}
@@ -237,7 +235,7 @@ export function PlayerInfoTab({
             {/* Most Champions */}
             {player.champions.length > 0 && (
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-text-muted w-12">모스트</span>
+                <span className="text-xs text-ink-subtle w-12">모스트</span>
                 <div className="flex flex-wrap gap-2">
                   {player.champions.slice(0, 3).map((c) => (
                     <div
@@ -246,7 +244,7 @@ export function PlayerInfoTab({
                       title={`${c.champion} · ${c.games}판 · 승률 ${c.winRate.toFixed(0)}% · KDA ${c.avgKda.toFixed(2)}`}
                     >
                       <ChampionIcon name={c.champion} size={20} />
-                      <span className="text-xs text-text-secondary">{c.games}판</span>
+                      <span className="text-xs text-ink-muted">{c.games}판</span>
                       <span className={`text-xs ${c.winRate >= 50 ? "text-win" : "text-lose"}`}>
                         {c.winRate.toFixed(0)}%
                       </span>
@@ -258,19 +256,19 @@ export function PlayerInfoTab({
 
             {/* Tier */}
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs text-text-muted w-12">티어</span>
+              <span className="text-xs text-ink-subtle w-12">티어</span>
               {player.tier ? (
                 <span className={`text-sm font-bold ${getTierColor(player.tier)}`}>
                   {player.tier}
                 </span>
               ) : (
-                <span className="text-xs text-text-muted">미설정</span>
+                <span className="text-xs text-ink-subtle">미설정</span>
               )}
             </div>
 
             {/* Preferred Lanes (ordered) */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-text-muted w-12">포지션</span>
+              <span className="text-xs text-ink-subtle w-12">포지션</span>
               {player.preferredLanes && player.preferredLanes.length > 0 ? (
                 <div className="flex gap-1">
                   {player.preferredLanes.map((lane, i) => {
@@ -278,23 +276,23 @@ export function PlayerInfoTab({
                     return (
                       <span
                         key={lane}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-accent/10 text-accent text-xs font-medium"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium"
                       >
-                        <span className="text-[10px] text-accent/60">{i + 1}</span>
+                        <span className="text-[10px] text-primary/60">{i + 1}</span>
                         {l?.emoji} {l?.label}
                       </span>
                     );
                   })}
                 </div>
               ) : (
-                <span className="text-xs text-text-muted">미설정</span>
+                <span className="text-xs text-ink-subtle">미설정</span>
               )}
             </div>
 
             {/* 5각 스탯 */}
             {player.radar && player.gamesPlayed >= 2 && (
-              <div className="border-t border-border pt-2 mb-1">
-                <div className="text-xs text-text-muted mb-1">능력치 (그룹 내 백분위)</div>
+              <div className="border-t border-hairline pt-2 mb-1">
+                <div className="text-xs text-ink-subtle mb-1">능력치 (그룹 내 백분위)</div>
                 <div className="flex justify-center">
                   <RadarChart
                     size={210}
@@ -312,21 +310,21 @@ export function PlayerInfoTab({
 
             {/* Lane Stats */}
             {player.laneStats.length > 0 && (
-              <div className="border-t border-border pt-2">
-                <div className="text-xs text-text-muted mb-1.5">라인별 전적</div>
+              <div className="border-t border-hairline pt-2">
+                <div className="text-xs text-ink-subtle mb-1.5">라인별 전적</div>
                 <div className="space-y-1">
                   {player.laneStats.map((ls) => (
                     <div key={ls.lane} className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
                         <span>{LANES.find((l) => l.key === ls.lane)?.emoji}</span>
-                        <span className="text-text-primary">{LANE_LABEL[ls.lane]}</span>
+                        <span className="text-ink">{LANE_LABEL[ls.lane]}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-text-muted">{ls.games}판</span>
+                        <span className="text-ink-subtle">{ls.games}판</span>
                         <span className={ls.winRate >= 50 ? "text-win font-medium" : "text-lose"}>
                           {ls.winRate.toFixed(0)}%
                         </span>
-                        <span className="text-text-muted">KDA {ls.avgKda.toFixed(2)}</span>
+                        <span className="text-ink-subtle">KDA {ls.avgKda.toFixed(2)}</span>
                       </div>
                     </div>
                   ))}
@@ -364,9 +362,9 @@ export function PlayerInfoTab({
 
           {/* Tier */}
           <div>
-            <label className="text-sm text-text-secondary font-medium block mb-2">솔랭 티어</label>
+            <label className="text-sm text-ink-muted font-medium block mb-2">솔랭 티어</label>
             <select
-              className="w-full bg-bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent cursor-pointer"
+              className="w-full bg-surface-1 border border-hairline rounded-xl px-4 py-2.5 text-sm text-ink focus:outline-none focus:border-primary cursor-pointer"
               value={editTier}
               onChange={(e) => setEditTier(e.target.value)}
             >
@@ -379,8 +377,8 @@ export function PlayerInfoTab({
 
           {/* Preferred Lanes (ordered) */}
           <div>
-            <label className="text-sm text-text-secondary font-medium block mb-1">선호 포지션</label>
-            <p className="text-xs text-text-muted mb-2">클릭한 순서대로 1순위, 2순위... 가 됩니다</p>
+            <label className="text-sm text-ink-muted font-medium block mb-1">선호 포지션</label>
+            <p className="text-xs text-ink-subtle mb-2">클릭한 순서대로 1순위, 2순위... 가 됩니다</p>
 
             {/* Current order */}
             {editLanes.length > 0 && (
@@ -390,16 +388,16 @@ export function PlayerInfoTab({
                   return (
                     <div
                       key={lane}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/15 text-accent text-sm font-medium"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary text-sm font-medium"
                     >
-                      <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                      <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
                         {i + 1}
                       </span>
                       {l?.emoji} {l?.label}
                       <button
                         type="button"
                         onClick={() => setEditLanes((prev) => prev.filter((_, j) => j !== i))}
-                        className="ml-0.5 text-accent/50 hover:text-accent cursor-pointer"
+                        className="ml-0.5 text-primary/50 hover:text-primary cursor-pointer"
                       >
                         <X size={12} />
                       </button>
@@ -420,12 +418,12 @@ export function PlayerInfoTab({
                     onClick={() => toggleLane(lane.key)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-fast cursor-pointer ${
                       active
-                        ? "bg-accent/20 text-accent border border-accent/30"
-                        : "bg-bg-card text-text-muted border border-border hover:border-border-hover"
+                        ? "bg-primary/20 text-primary border border-primary/30"
+                        : "bg-surface-1 text-ink-subtle border border-hairline hover:border-hairline-strong"
                     }`}
                   >
                     {active && (
-                      <span className="w-4 h-4 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                      <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
                         {idx + 1}
                       </span>
                     )}
@@ -469,14 +467,14 @@ export function PlayerInfoTab({
         title="아이디 통합 (부캐 합치기)"
       >
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+          <p className="text-sm text-ink-muted">
             부캐 아이디를 본캐에 통합합니다. 부캐의 모든 매치 기록이 본캐로 합산됩니다.
           </p>
 
           <div>
-            <label className="text-sm text-text-secondary font-medium block mb-2">본캐 (메인 아이디)</label>
+            <label className="text-sm text-ink-muted font-medium block mb-2">본캐 (메인 아이디)</label>
             <select
-              className="w-full bg-bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent cursor-pointer"
+              className="w-full bg-surface-1 border border-hairline rounded-xl px-4 py-2.5 text-sm text-ink focus:outline-none focus:border-primary cursor-pointer"
               value={mergeTarget}
               onChange={(e) => setMergeTarget(e.target.value)}
             >
@@ -493,9 +491,9 @@ export function PlayerInfoTab({
           </div>
 
           <div>
-            <label className="text-sm text-text-secondary font-medium block mb-2">부캐 (통합할 아이디)</label>
+            <label className="text-sm text-ink-muted font-medium block mb-2">부캐 (통합할 아이디)</label>
             <select
-              className="w-full bg-bg-input border border-border rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent cursor-pointer"
+              className="w-full bg-surface-1 border border-hairline rounded-xl px-4 py-2.5 text-sm text-ink focus:outline-none focus:border-primary cursor-pointer"
               value={mergeAlias}
               onChange={(e) => setMergeAlias(e.target.value)}
             >
@@ -514,11 +512,11 @@ export function PlayerInfoTab({
           </div>
 
           {mergeTarget && mergeAlias && (
-            <div className="bg-bg-card border border-border rounded-xl p-3 text-sm">
-              <span className="text-text-primary font-medium">{mergeAlias}</span>
-              <span className="text-text-muted"> 의 모든 기록이 </span>
-              <span className="text-accent font-medium">{mergeTarget}</span>
-              <span className="text-text-muted"> 으로 합산됩니다.</span>
+            <div className="bg-surface-1 border border-hairline rounded-xl p-3 text-sm">
+              <span className="text-ink font-medium">{mergeAlias}</span>
+              <span className="text-ink-subtle"> 의 모든 기록이 </span>
+              <span className="text-primary font-medium">{mergeTarget}</span>
+              <span className="text-ink-subtle"> 으로 합산됩니다.</span>
             </div>
           )}
 

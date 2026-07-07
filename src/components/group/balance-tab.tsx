@@ -25,9 +25,9 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 function getTierColor(tier?: string): string {
-  if (!tier) return "text-text-muted";
+  if (!tier) return "text-ink-subtle";
   const base = tier.split(" ")[0];
-  return TIER_COLORS[base] || "text-text-muted";
+  return TIER_COLORS[base] || "text-ink-subtle";
 }
 
 export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[]; group: Group }) {
@@ -86,23 +86,23 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
     <div className="space-y-6">
       {/* Instructions */}
       <Card className="flex items-center gap-3 py-3 px-4">
-        <Users size={18} className="text-accent shrink-0" />
-        <p className="text-sm text-text-secondary">
+        <Users size={18} className="text-primary shrink-0" />
+        <p className="text-sm text-ink-muted">
           참여할 플레이어를 선택하면 솔랭 티어 + 내전 성적(종합점수)을 종합해서 팀을 추천하고,
           10명일 때는 선호 포지션까지 고려해 라인을 배정합니다.
-          티어·선호 포지션은 <span className="text-accent">선수 정보</span> 탭에서 설정할 수 있습니다.
+          티어·선호 포지션은 <span className="text-primary">선수 정보</span> 탭에서 설정할 수 있습니다.
         </p>
       </Card>
 
       {/* Player Selection */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm text-text-secondary">
-            참여자 선택 <span className="text-accent font-bold">{selected.size}</span>/10
+          <div className="text-sm text-ink-muted">
+            참여자 선택 <span className="text-primary font-bold">{selected.size}</span>/10
           </div>
           <button
             onClick={selectAll}
-            className="text-xs text-text-muted hover:text-accent cursor-pointer transition-fast"
+            className="text-xs text-ink-subtle hover:text-primary cursor-pointer transition-fast"
           >
             {selected.size === Math.min(allPlayers.length, 10) ? "전체 해제" : "전체 선택"}
           </button>
@@ -118,14 +118,14 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
                 key={player.nickname}
                 className={`flex items-center gap-3 p-3 rounded-xl border transition-fast cursor-pointer ${
                   isSelected
-                    ? "bg-accent/5 border-accent/30"
-                    : "bg-bg-card border-border hover:border-border-hover"
+                    ? "bg-primary/5 border-primary/30"
+                    : "bg-surface-1 border-hairline hover:border-hairline-strong"
                 }`}
                 onClick={() => togglePlayer(player.nickname)}
               >
                 <div
                   className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-fast ${
-                    isSelected ? "bg-accent border-accent" : "border-border"
+                    isSelected ? "bg-primary border-primary" : "border-hairline"
                   }`}
                 >
                   {isSelected && <Check size={12} className="text-white" />}
@@ -133,7 +133,7 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-text-primary text-sm">{player.nickname}</span>
+                    <span className="font-medium text-ink text-sm">{player.nickname}</span>
                     {memberTier && (
                       <span className={`text-xs font-bold ${getTierColor(memberTier)}`}>
                         {memberTier}
@@ -141,13 +141,13 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
                     )}
                   </div>
                   {player.gamesPlayed > 0 && (
-                    <span className="text-xs text-text-muted">
+                    <span className="text-xs text-ink-subtle">
                       {player.gamesPlayed}판 · {player.winRate.toFixed(0)}% · KDA {player.avgKda.toFixed(2)}
                     </span>
                   )}
                 </div>
 
-                <span className="text-xs text-text-muted font-mono w-10 text-right">
+                <span className="text-xs text-ink-subtle font-mono w-10 text-right">
                   {player.score.toFixed(1)}
                 </span>
               </div>
@@ -169,16 +169,16 @@ export function BalanceTab({ playerStats, group }: { playerStats: PlayerStats[];
       </div>
 
       {selected.size > 0 && selected.size % 2 !== 0 && (
-        <p className="text-xs text-center text-text-muted">짝수 인원만 밸런스를 맞출 수 있습니다</p>
+        <p className="text-xs text-center text-ink-subtle">짝수 인원만 밸런스를 맞출 수 있습니다</p>
       )}
 
       {/* Result */}
       {result && (
         <div className="space-y-4">
           <div className="flex items-center justify-center gap-2">
-            <Zap size={16} className="text-accent" />
-            <span className="text-sm font-medium text-text-primary">
-              팀 편성 완료 — 점수 차이: <span className="text-accent font-bold">{result.diff.toFixed(2)}</span>
+            <Zap size={16} className="text-primary" />
+            <span className="text-sm font-medium text-ink">
+              팀 편성 완료 — 점수 차이: <span className="text-primary font-bold">{result.diff.toFixed(2)}</span>
             </span>
           </div>
 
@@ -211,7 +211,7 @@ function TeamCard({
     <Card className={`border-l-4 ${borderColor}`}>
       <div className="flex items-center justify-between mb-3">
         <span className={`text-sm font-bold px-2 py-0.5 rounded ${labelBg}`}>{label}</span>
-        <span className="text-xs text-text-muted font-mono">총 {total.toFixed(1)}점</span>
+        <span className="text-xs text-ink-subtle font-mono">총 {total.toFixed(1)}점</span>
       </div>
       <div className="space-y-2">
         {team.map((p) => (
@@ -219,20 +219,20 @@ function TeamCard({
             <div className="flex items-center gap-2">
               {p.assignedLane && (
                 <span
-                  className="text-xs w-14 shrink-0 text-text-secondary"
+                  className="text-xs w-14 shrink-0 text-ink-muted"
                   title={p.preferredLanes?.length ? `선호: ${p.preferredLanes.map((l) => LANE_LABEL[l]).join(" > ")}` : "선호 포지션 미설정"}
                 >
                   {LANE_EMOJI[p.assignedLane]} {LANE_LABEL[p.assignedLane]}
                 </span>
               )}
-              <span className="font-medium text-text-primary">{p.nickname}</span>
+              <span className="font-medium text-ink">{p.nickname}</span>
               {tiers[p.nickname] && (
                 <span className={`text-xs font-bold ${getTierColor(tiers[p.nickname])}`}>
                   {tiers[p.nickname]}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 text-xs text-text-muted">
+            <div className="flex items-center gap-3 text-xs text-ink-subtle">
               {p.gamesPlayed > 0 && (
                 <>
                   <span>{p.winRate.toFixed(0)}%</span>

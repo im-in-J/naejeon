@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
+import { StatTable, stickyHead } from "@/components/ui/stat-table";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Crown } from "lucide-react";
@@ -95,11 +95,9 @@ export function PlayerStatsTab({
       )}
 
       {/* Leaderboard */}
-      <Card className="overflow-hidden p-0">
-        <div className="overflow-auto max-h-[70vh]">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-bg-secondary">
-              <tr className="text-text-muted text-xs border-b border-border">
+      <StatTable>
+            <thead className={stickyHead}>
+              <tr className="text-ink-subtle text-xs border-b border-hairline">
                 <th className="text-center py-3 px-2 w-10">#</th>
                 <th className="text-left py-3 px-3">플레이어</th>
                 <SortTh {...thProps} label="경기" sortKey="gamesPlayed" />
@@ -122,16 +120,16 @@ export function PlayerStatsTab({
               {sorted.map((entry, rank) => (
                 <tr
                   key={entry.nickname}
-                  className="border-b border-border/30 hover:bg-bg-card-hover/50 transition-colors cursor-pointer"
+                  className="border-b border-hairline/30 hover:bg-surface-2/50 transition-colors cursor-pointer"
                   onClick={() => setSelectedPlayer(entry)}
                 >
                   <td className="text-center py-3 px-2">
-                    <span className={`font-bold ${rank === 0 ? "rank-1 text-base" : rank === 1 ? "rank-2" : rank === 2 ? "rank-3" : "text-text-muted"}`}>
+                    <span className={`font-bold ${rank === 0 ? "rank-1 text-base" : rank === 1 ? "rank-2" : rank === 2 ? "rank-3" : "text-ink-subtle"}`}>
                       {rank + 1}
                     </span>
                   </td>
                   <td className="py-3 px-3">
-                    <div className="font-medium text-text-primary flex items-center gap-1.5">
+                    <div className="font-medium text-ink flex items-center gap-1.5">
                       {rank === 0 && <Crown size={14} className="text-gold" />}
                       {entry.nickname}
                       {rising.has(entry.nickname) && (
@@ -142,52 +140,50 @@ export function PlayerStatsTab({
                       )}
                     </div>
                   </td>
-                  <td className="text-center py-3 px-2 text-text-secondary">
+                  <td className="text-center py-3 px-2 text-ink-muted">
                     <span>{entry.gamesPlayed}</span>
-                    <span className="text-text-muted text-xs ml-1">({entry.wins}W {entry.losses}L)</span>
+                    <span className="text-ink-subtle text-xs ml-1">({entry.wins}W {entry.losses}L)</span>
                   </td>
                   <td className="text-center py-3 px-2">
-                    <span className={entry.winRate >= 55 ? "text-win font-bold" : entry.winRate < 45 ? "text-lose" : "text-text-primary"}>
+                    <span className={entry.winRate >= 55 ? "text-win font-bold" : entry.winRate < 45 ? "text-lose" : "text-ink"}>
                       {entry.winRate.toFixed(0)}%
                     </span>
                   </td>
                   <td className="text-center py-3 px-2">
-                    <span className={entry.avgKda >= 3.5 ? "text-win font-bold" : entry.avgKda < 2 ? "text-lose" : "text-text-primary"}>
+                    <span className={entry.avgKda >= 3.5 ? "text-win font-bold" : entry.avgKda < 2 ? "text-lose" : "text-ink"}>
                       {entry.avgKda.toFixed(2)}
                     </span>
                   </td>
-                  <td className="text-center py-3 px-2 text-text-primary">{entry.csPerMin.toFixed(1)}</td>
-                  <td className="text-center py-3 px-2 text-text-secondary">{entry.avgVision.toFixed(1)}</td>
+                  <td className="text-center py-3 px-2 text-ink">{entry.csPerMin.toFixed(1)}</td>
+                  <td className="text-center py-3 px-2 text-ink-muted">{entry.avgVision.toFixed(1)}</td>
                   <td className="text-center py-3 px-2">
-                    <span className={entry.avgKillParticipation >= 60 ? "text-win font-semibold" : "text-text-secondary"}>
+                    <span className={entry.avgKillParticipation >= 60 ? "text-win font-semibold" : "text-ink-muted"}>
                       {entry.avgKillParticipation.toFixed(0)}%
                     </span>
                   </td>
                   <td className="text-center py-3 px-2">
                     {entry.damagePerGold > 0 ? (
-                      <span className={entry.damagePerGold >= 1.5 ? "text-win font-semibold" : "text-text-secondary"}>
+                      <span className={entry.damagePerGold >= 1.5 ? "text-win font-semibold" : "text-ink-muted"}>
                         {entry.damagePerGold.toFixed(2)}
                       </span>
                     ) : (
-                      <span className="text-text-muted">-</span>
+                      <span className="text-ink-subtle">-</span>
                     )}
                   </td>
                   <td className="text-center py-3 px-2">
                     <div className="flex items-center justify-center gap-1">
                       {entry.mvpCount > 0 && <Badge variant="mvp">{entry.mvpCount}</Badge>}
                       {entry.aceCount > 0 && <Badge variant="ace">{entry.aceCount}</Badge>}
-                      {entry.mvpCount === 0 && entry.aceCount === 0 && <span className="text-text-muted">-</span>}
+                      {entry.mvpCount === 0 && entry.aceCount === 0 && <span className="text-ink-subtle">-</span>}
                     </div>
                   </td>
                   <td className="text-center py-3 px-2">
-                    <span className="font-bold text-accent">{entry.totalScore.toFixed(1)}</span>
+                    <span className="font-bold text-primary">{entry.totalScore.toFixed(1)}</span>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      </Card>
+      </StatTable>
 
       {/* Player Detail Modal */}
       <Modal
@@ -237,7 +233,7 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
 
       {/* Recent form */}
       <div>
-        <div className="text-xs text-text-muted mb-2">최근 전적</div>
+        <div className="text-xs text-ink-subtle mb-2">최근 전적</div>
         <div className="flex gap-1">
           {player.recentMatches.map((m, i) => (
             <div
@@ -255,17 +251,17 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
       {/* Lane stats */}
       {player.laneStats.length > 0 && (
         <div>
-          <div className="text-xs text-text-muted mb-2">라인별 전적</div>
+          <div className="text-xs text-ink-subtle mb-2">라인별 전적</div>
           <div className="grid grid-cols-5 gap-1.5">
             {player.laneStats.map((ls) => (
-              <div key={ls.lane} className="bg-bg-secondary/50 rounded-lg p-2 text-center">
+              <div key={ls.lane} className="bg-surface-1/50 rounded-lg p-2 text-center">
                 <div className="text-xs mb-0.5">
                   {{ top: "🛡️", jungle: "🌿", mid: "🔥", adc: "🏹", support: "💚" }[ls.lane]}
                 </div>
                 <div className={`text-xs font-bold ${ls.winRate >= 50 ? "text-win" : "text-lose"}`}>
                   {ls.winRate.toFixed(0)}%
                 </div>
-                <div className="text-[10px] text-text-muted">{ls.games}판</div>
+                <div className="text-[10px] text-ink-subtle">{ls.games}판</div>
               </div>
             ))}
           </div>
@@ -276,29 +272,29 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
       {player.champions.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs text-text-muted">챔피언 풀</div>
-            <div className="text-xs text-text-muted">
-              사용한 챔피언 <span className="text-text-secondary font-semibold">{player.champions.length}</span>개
+            <div className="text-xs text-ink-subtle">챔피언 풀</div>
+            <div className="text-xs text-ink-subtle">
+              사용한 챔피언 <span className="text-ink-muted font-semibold">{player.champions.length}</span>개
             </div>
           </div>
           <div className="space-y-1.5">
             {(showAllChamps ? player.champions : player.champions.slice(0, 5)).map((c) => (
               <div
                 key={c.champion}
-                className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-bg-secondary/50 text-sm"
+                className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-surface-1/50 text-sm"
               >
                 <div className="flex items-center gap-3">
-                  <span className="font-medium text-text-primary w-20 truncate">{c.champion}</span>
-                  <span className="text-text-muted text-xs">{c.games}판</span>
+                  <span className="font-medium text-ink w-20 truncate">{c.champion}</span>
+                  <span className="text-ink-subtle text-xs">{c.games}판</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className={`text-xs ${c.winRate >= 50 ? "text-win" : "text-lose"}`}>
                     {c.winRate.toFixed(0)}%
                   </span>
-                  <span className="text-text-secondary text-xs">
+                  <span className="text-ink-muted text-xs">
                     {c.avgKills.toFixed(1)}/{c.avgDeaths.toFixed(1)}/{c.avgAssists.toFixed(1)}
                   </span>
-                  <span className="text-xs text-text-muted">KDA {c.avgKda.toFixed(2)}</span>
+                  <span className="text-xs text-ink-subtle">KDA {c.avgKda.toFixed(2)}</span>
                 </div>
               </div>
             ))}
@@ -306,7 +302,7 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
           {player.champions.length > 5 && (
             <button
               onClick={() => setShowAllChamps((v) => !v)}
-              className="mt-2 w-full text-center text-xs text-text-muted hover:text-text-primary py-1.5 rounded-lg bg-bg-secondary/30 hover:bg-bg-secondary/50 transition-fast cursor-pointer"
+              className="mt-2 w-full text-center text-xs text-ink-subtle hover:text-ink py-1.5 rounded-lg bg-surface-1/30 hover:bg-surface-1/50 transition-fast cursor-pointer"
             >
               {showAllChamps ? "접기" : `더보기 (${player.champions.length - 5}개 더)`}
             </button>
@@ -319,9 +315,9 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
 
 function MiniStat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div className="bg-bg-secondary/50 rounded-lg p-2.5 text-center">
-      <div className="text-[10px] text-text-muted uppercase tracking-wider">{label}</div>
-      <div className={`font-bold text-sm mt-0.5 ${color || "text-text-primary"}`}>{value}</div>
+    <div className="bg-surface-1/50 rounded-lg p-2.5 text-center">
+      <div className="text-[10px] text-ink-subtle uppercase tracking-wider">{label}</div>
+      <div className={`font-bold text-sm mt-0.5 ${color || "text-ink"}`}>{value}</div>
     </div>
   );
 }

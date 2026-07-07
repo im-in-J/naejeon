@@ -6,6 +6,7 @@ import { buildPlayerStats, buildChampionStats, computeAwards } from "@/lib/stats
 import { Button } from "@/components/ui/button";
 import { PlayerStatsTab } from "@/components/group/player-stats-tab";
 import { ChampionStatsTab } from "@/components/group/champion-stats-tab";
+import { LaneRankingTab } from "@/components/group/lane-ranking-tab";
 import { MatchHistoryTab } from "@/components/group/match-history-tab";
 import { BalanceTab } from "@/components/group/balance-tab";
 import { PlayerInfoTab } from "@/components/group/player-info-tab";
@@ -20,17 +21,19 @@ import {
   UserCog,
   GitCompareArrows,
   Handshake,
+  ListOrdered,
   Download,
   Plus,
   HelpCircle,
 } from "lucide-react";
 import type { Group } from "@/lib/types";
 
-type Tab = "players" | "champions" | "sides" | "duos" | "matches" | "info" | "balance";
+type Tab = "players" | "champions" | "lanes" | "sides" | "duos" | "matches" | "info" | "balance";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
   { key: "players", label: "선수별 성적", icon: <Users size={16} /> },
   { key: "champions", label: "챔피언 승률", icon: <Swords size={16} /> },
+  { key: "lanes", label: "포지션별 순위", icon: <ListOrdered size={16} /> },
   { key: "sides", label: "진영별 통계", icon: <GitCompareArrows size={16} /> },
   { key: "duos", label: "듀오 상성", icon: <Handshake size={16} /> },
   { key: "matches", label: "매치 기록", icon: <Gamepad2 size={16} /> },
@@ -155,6 +158,7 @@ export default function MainGroupPage() {
       {/* Tab Content */}
       {tab === "players" && <PlayerStatsTab playerStats={playerStats} awards={awards} />}
       {tab === "champions" && <ChampionStatsTab championStats={championStats} />}
+      {tab === "lanes" && <LaneRankingTab playerStats={playerStats} />}
       {tab === "sides" && <TeamSideTab group={group} />}
       {tab === "duos" && <DuoTab group={group} />}
       {tab === "matches" && (

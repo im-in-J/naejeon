@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Card } from "@/components/ui/card";
+import { StatTable, stickyHead } from "@/components/ui/stat-table";
 import { buildTeamSideStats, capDuosPerPlayer, type DuoRecord } from "@/lib/stats";
 import type { Group } from "@/lib/types";
 
@@ -11,11 +11,9 @@ const CAP = 2; // 한 사람이 한 분류에 최대 2개까지만 등장
 // 같은 팀 듀오 테이블 (베스트/워스트 공용)
 function SameTeamDuoTable({ duos }: { duos: DuoRecord[] }) {
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-ink-subtle text-xs border-b border-hairline bg-canvas">
+    <StatTable>
+          <thead className={stickyHead}>
+            <tr className="text-ink-subtle text-xs border-b border-hairline">
               <th className="text-left py-2.5 px-3">듀오</th>
               <th className="text-center py-2.5 px-2">함께한 경기</th>
               <th className="text-center py-2.5 px-2">승률</th>
@@ -50,9 +48,7 @@ function SameTeamDuoTable({ duos }: { duos: DuoRecord[] }) {
               ))
             )}
           </tbody>
-        </table>
-      </div>
-    </Card>
+    </StatTable>
   );
 }
 
@@ -95,11 +91,9 @@ export function DuoTab({ group }: { group: Group }) {
       {/* Rivals */}
       <div>
         <div className="text-xs text-ink-subtle mb-2 font-medium">⚔️ 라이벌 (적팀으로 만난 횟수 · 상위 7 · 인당 최대 2개)</div>
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-ink-subtle text-xs border-b border-hairline bg-canvas">
+        <StatTable>
+              <thead className={stickyHead}>
+                <tr className="text-ink-subtle text-xs border-b border-hairline">
                   <th className="text-left py-2.5 px-3">매치업</th>
                   <th className="text-center py-2.5 px-2">맞대결</th>
                   <th className="text-center py-2.5 px-2">상대 전적</th>
@@ -132,9 +126,7 @@ export function DuoTab({ group }: { group: Group }) {
                   ))
                 )}
               </tbody>
-            </table>
-          </div>
-        </Card>
+        </StatTable>
       </div>
     </div>
   );

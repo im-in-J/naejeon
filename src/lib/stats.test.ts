@@ -4,6 +4,7 @@ import {
   buildChampionStats,
   buildTeamSideStats,
   computeAwards,
+  buildLaneRankings,
   rankMomentum,
   capDuosPerPlayer,
   getBalancerPlayers,
@@ -359,5 +360,47 @@ describe("buildRadarStats", () => {
         expect(v).toBeLessThanOrEqual(100);
       }
     }
+  });
+});
+
+// ─── buildLaneRankings ───
+
+describe("buildLaneRankings", () => {
+  it("ranks players per lane and keeps lane order top→jungle→mid→adc→support", () => {
+    const matches = [
+      ...Array.from({ length: 3 }, () =>
+        match([
+          ps({ nickname: "Mid1", team: "blue", win: true, lane: "mid", kills: 6, deaths: 1, assists: 4 }),
+          ps({ nickname: "Mid2", team: "red", win: false, lane: "mid" }),
+        ])
+      ),
+      match([
+        ps({ nickname: "Top1", team: "blue", win: true, lane: "top" }),
+        ps({ nickname: "X", team: "red", win: false, lane: "top" }),
+      ]),
+    ];
+    const stats = buildPlayerStats(group(matches));
+    const rankings = buildLaneRankings(stats);
+    expect(rankings.map((r) => r.lane)).toEqual(["top", "jungle", "mid", "adc", "support"]);
+
+    const mid = rankings.find((r) => r.lane === "mid")!;
+    expect(mid.entries[0].nickname).toBe("Mid1"); // higher adjusted score
+    expect(mid.entries.map((e) => e.nickname)).toContain("Mid2");
+
+    const jungle = rankings.find((r) => r.lane === "jungle")!;
+    expect(jungle.entries).toHaveLength(0); // nobody played jungle
+  });
+
+  it("excludes players below the minGames threshold", () => {
+    const stats = buildPlayerStats(
+      group([
+        match([
+          ps({ nickname: "A", team: "blue", win: true, lane: "adc" }),
+          ps({ nickname: "B", team: "red", win: false, lane: "adc" }),
+        ]),
+      ])
+    );
+    const rankings = buildLaneRankings(stats, 2);
+    expect(rankings.find((r) => r.lane === "adc")!.entries).toHaveLength(0);
   });
 });
