@@ -522,10 +522,6 @@ export function computeAwards(group: Group): Award[] {
   if (farmKing)
     awards.push({ title: "농사왕", emoji: "🌾", player: farmKing.nickname, value: `평균 ${Math.round(farmKing.avgCs)} CS` });
 
-  const mostGames = [...qualified].sort((a, b) => b.gamesPlayed - a.gamesPlayed)[0];
-  if (mostGames)
-    awards.push({ title: "내전 중독", emoji: "🎮", player: mostGames.nickname, value: `${mostGames.gamesPlayed}판` });
-
   const ccKing = [...qualified].sort((a, b) => b.avgCcScore - a.avgCcScore)[0];
   if (ccKing && ccKing.avgCcScore > 0)
     awards.push({ title: "CC왕", emoji: "⛓️", player: ccKing.nickname, value: `평균 ${ccKing.avgCcScore.toFixed(1)}` });
