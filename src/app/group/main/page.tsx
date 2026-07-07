@@ -73,7 +73,7 @@ export default function MainGroupPage() {
 
   const playerStats = useMemo(() => (group ? buildPlayerStats(group) : []), [group]);
   const championStats = useMemo(() => (group ? buildChampionStats(group) : []), [group]);
-  const awards = useMemo(() => (group ? computeAwards(group, playerStats) : []), [group, playerStats]);
+  const awards = useMemo(() => (group ? computeAwards(group) : []), [group]);
 
   const handleDeleteMatch = async (matchId: string) => {
     await deleteMatchApi(matchId);

@@ -58,7 +58,9 @@ export function PlayerStatsTab({
     <div className="space-y-6">
       {/* Awards — 3-row grid */}
       {awards.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        <div className="space-y-2">
+          <div className="text-xs text-ink-tertiary">🏅 어워즈 · 최근 20경기 기준 (경기가 쌓일수록 갱신)</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
           {awards.map((award) => (
             <div
               key={award.title}
@@ -72,6 +74,7 @@ export function PlayerStatsTab({
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 

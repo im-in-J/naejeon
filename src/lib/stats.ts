@@ -479,15 +479,23 @@ export interface Award {
   value: string;
 }
 
-// 개인 타이틀 최소 경기 수
+// 개인 타이틀 최소 경기 수 & 어워즈 산정 윈도(최근 N경기)
 const AWARD_MIN_GAMES = 15;
+const AWARD_RECENT_WINDOW = 20;
 
-export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[] {
+export function computeAwards(group: Group): Award[] {
   const awards: Award[] = [];
+  if (group.matches.length === 0) return awards;
+
+  // 최근 20경기만 기준으로 어워즈 산정 (경기가 쌓일수록 계속 갱신됨)
+  const recentMatches = group.matches.slice(-AWARD_RECENT_WINDOW);
+  const windowGroup: Group = { ...group, matches: recentMatches };
+  const playerStats = buildPlayerStats(windowGroup);
   if (playerStats.length === 0) return awards;
 
-  // 개인 타이틀은 15판 이상 뛴 선수만 대상
-  const qualified = playerStats.filter((e) => e.gamesPlayed >= AWARD_MIN_GAMES);
+  // 윈도 크기에 맞춰 최소 경기 수 조정 (최근 경기의 절반 이상, 최대 15판)
+  const minGames = Math.max(3, Math.min(AWARD_MIN_GAMES, Math.ceil(recentMatches.length / 2)));
+  const qualified = playerStats.filter((e) => e.gamesPlayed >= minGames);
   const qualifiedSet = new Set(qualified.map((e) => e.nickname));
 
   const mostMvp = [...qualified].sort((a, b) => b.mvpCount - a.mvpCount)[0];
@@ -532,7 +540,7 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
   // 듀오 통계 (같은 팀 기록)
   const duoMap = new Map<string, { wins: number; total: number }>();
   const oppMap = new Map<string, number>(); // 같은 팀 못한 횟수 계산용: 적팀 만난 수
-  for (const m of group.matches) {
+  for (const m of recentMatches) {
     const blue = m.players.filter((p) => p.team === "blue");
     const red = m.players.filter((p) => p.team === "red");
     for (const team of [blue, red]) {
@@ -556,14 +564,15 @@ export function computeAwards(group: Group, playerStats: PlayerStats[]): Award[]
     }
   }
 
-  // 베스트 듀오 (같은 팀 승률 최고, 최소 10판, 두 명 모두 15판 이상) / 워스트 듀오 (최소 3판)
+  // 베스트 듀오 (같은 팀 승률 최고) / 워스트 듀오 (최소 3판) — 두 명 모두 자격 요건 충족
+  const bestDuoMin = Math.max(4, Math.min(10, Math.ceil(recentMatches.length * 0.3)));
   const bothQualified = (key: string) => key.split("|||").every((n) => qualifiedSet.has(n));
   let bestDuo: { key: string; wr: number; total: number } | null = null;
   let worstDuo: { key: string; wr: number; total: number } | null = null;
   for (const [key, { wins, total }] of duoMap) {
     if (total < 3 || !bothQualified(key)) continue;
     const wr = wins / total;
-    if (total >= 10 && (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total)))
+    if (total >= bestDuoMin && (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total)))
       bestDuo = { key, wr, total };
     if (!worstDuo || wr < worstDuo.wr || (wr === worstDuo.wr && total > worstDuo.total))
       worstDuo = { key, wr, total };
