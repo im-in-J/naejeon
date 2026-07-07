@@ -1,4 +1,4 @@
-import type { Group, Match, PlayerStat, Lane } from "./types";
+import type { Group, PlayerStat, Lane } from "./types";
 
 // ─── Player Stats ───
 
@@ -747,7 +747,7 @@ export function buildTeamSideStats(group: Group) {
   // Overall blue vs red
   let blueWins = 0;
   let redWins = 0;
-  let totalGames = group.matches.length;
+  const totalGames = group.matches.length;
   let blueKillsTotal = 0;
   let redKillsTotal = 0;
   let blueDeathsTotal = 0;
