@@ -128,21 +128,23 @@ export default function MainGroupPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-5 overflow-x-auto pb-1">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer whitespace-nowrap transition-fast ${
-              tab === t.key
-                ? "bg-primary/15 text-primary"
-                : "text-ink-subtle hover:text-ink hover:bg-surface-1"
-            }`}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 mb-5 border-b border-hairline bg-canvas/90 backdrop-blur-sm">
+        <div className="flex items-center gap-1 px-4 sm:px-6 lg:px-8 py-2 overflow-x-auto">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer whitespace-nowrap transition-fast ${
+                tab === t.key
+                  ? "bg-primary/15 text-primary"
+                  : "text-ink-subtle hover:text-ink hover:bg-surface-1"
+              }`}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab Content */}

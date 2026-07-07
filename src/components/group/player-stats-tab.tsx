@@ -177,6 +177,8 @@ export function PlayerStatsTab({
 }
 
 function PlayerDetail({ player }: { player: PlayerStats }) {
+  const [showAllChamps, setShowAllChamps] = useState(false);
+
   return (
     <div className="space-y-4">
       {/* Overview */}
@@ -247,9 +249,14 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
       {/* Champion pool */}
       {player.champions.length > 0 && (
         <div>
-          <div className="text-xs text-text-muted mb-2">챔피언 풀</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-text-muted">챔피언 풀</div>
+            <div className="text-xs text-text-muted">
+              사용한 챔피언 <span className="text-text-secondary font-semibold">{player.champions.length}</span>개
+            </div>
+          </div>
           <div className="space-y-1.5">
-            {player.champions.slice(0, 8).map((c) => (
+            {(showAllChamps ? player.champions : player.champions.slice(0, 5)).map((c) => (
               <div
                 key={c.champion}
                 className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-bg-secondary/50 text-sm"
@@ -270,6 +277,14 @@ function PlayerDetail({ player }: { player: PlayerStats }) {
               </div>
             ))}
           </div>
+          {player.champions.length > 5 && (
+            <button
+              onClick={() => setShowAllChamps((v) => !v)}
+              className="mt-2 w-full text-center text-xs text-text-muted hover:text-text-primary py-1.5 rounded-lg bg-bg-secondary/30 hover:bg-bg-secondary/50 transition-fast cursor-pointer"
+            >
+              {showAllChamps ? "접기" : `더보기 (${player.champions.length - 5}개 더)`}
+            </button>
+          )}
         </div>
       )}
     </div>
