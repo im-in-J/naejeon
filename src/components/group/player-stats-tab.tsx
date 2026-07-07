@@ -40,6 +40,22 @@ export function PlayerStatsTab({
     return sortAsc ? diff : -diff;
   });
 
+  // 상승세/하락세: 최근 폼 추세(momentum) 상위 3명씩만 표기
+  const rising = new Set(
+    playerStats
+      .filter((p) => p.momentum != null && p.momentum > 0)
+      .sort((a, b) => (b.momentum as number) - (a.momentum as number))
+      .slice(0, 3)
+      .map((p) => p.nickname)
+  );
+  const falling = new Set(
+    playerStats
+      .filter((p) => p.momentum != null && p.momentum < 0)
+      .sort((a, b) => (a.momentum as number) - (b.momentum as number))
+      .slice(0, 3)
+      .map((p) => p.nickname)
+  );
+
 
   const SortTh = ({ label, sortKey, title }: { label: string; sortKey: SortKey; title?: string }) => (
     <th
@@ -117,6 +133,12 @@ export function PlayerStatsTab({
                     <div className="font-medium text-text-primary flex items-center gap-1.5">
                       {rank === 0 && <Crown size={14} className="text-gold" />}
                       {entry.nickname}
+                      {rising.has(entry.nickname) && (
+                        <span className="text-[10px] font-semibold text-win bg-win/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">📈 상승세</span>
+                      )}
+                      {falling.has(entry.nickname) && (
+                        <span className="text-[10px] font-semibold text-lose bg-lose/10 px-1.5 py-0.5 rounded-full whitespace-nowrap">📉 하락세</span>
+                      )}
                     </div>
                   </td>
                   <td className="text-center py-3 px-2 text-text-secondary">

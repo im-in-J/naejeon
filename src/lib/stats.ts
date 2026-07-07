@@ -34,6 +34,7 @@ export interface PlayerStats {
   champions: ChampionUsage[];
   laneStats: LaneUsage[];
   recentMatches: { win: boolean; date: string }[];
+  momentum: number | null; // 최근 5경기 승률 − 그 이전 승률 (표본 부족 시 null)
 }
 
 export interface LaneUsage {
@@ -82,6 +83,17 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
     .map(([nickname, stats]) => {
       const wins = stats.filter((s) => s.win).length;
       const losses = stats.length - wins;
+
+      // 최근 폼 추세: 최근 5경기 승률 − 그 이전 경기 승률 (표본 8경기 이상일 때만)
+      let momentum: number | null = null;
+      if (stats.length >= 8) {
+        const recent = stats.slice(-5);
+        const prior = stats.slice(0, -5);
+        const recentWR = (recent.filter((s) => s.win).length / recent.length) * 100;
+        const priorWR = (prior.filter((s) => s.win).length / prior.length) * 100;
+        momentum = recentWR - priorWR;
+      }
+
       const totalKills = stats.reduce((s, p) => s + p.kills, 0);
       const totalDeaths = stats.reduce((s, p) => s + p.deaths, 0);
       const totalAssists = stats.reduce((s, p) => s + p.assists, 0);
@@ -211,6 +223,7 @@ export function buildPlayerStats(group: Group): PlayerStats[] {
         champions,
         laneStats,
         recentMatches,
+        momentum,
       };
     });
 
@@ -496,7 +509,6 @@ export function computeAwards(group: Group): Award[] {
   // 윈도 크기에 맞춰 최소 경기 수 조정 (최근 경기의 절반 이상, 최대 15판)
   const minGames = Math.max(3, Math.min(AWARD_MIN_GAMES, Math.ceil(recentMatches.length / 2)));
   const qualified = playerStats.filter((e) => e.gamesPlayed >= minGames);
-  const qualifiedSet = new Set(qualified.map((e) => e.nickname));
 
   const mostMvp = [...qualified].sort((a, b) => b.mvpCount - a.mvpCount)[0];
   if (mostMvp && mostMvp.mvpCount > 0)
@@ -537,76 +549,7 @@ export function computeAwards(group: Group): Award[] {
   if (mostAce && mostAce.aceCount > 0)
     awards.push({ title: "최다 ACE", emoji: "🌟", player: mostAce.nickname, value: `${mostAce.aceCount}회` });
 
-  // 듀오 통계 (같은 팀 기록)
-  const duoMap = new Map<string, { wins: number; total: number }>();
-  const oppMap = new Map<string, number>(); // 같은 팀 못한 횟수 계산용: 적팀 만난 수
-  for (const m of recentMatches) {
-    const blue = m.players.filter((p) => p.team === "blue");
-    const red = m.players.filter((p) => p.team === "red");
-    for (const team of [blue, red]) {
-      const win = team.length > 0 && team[0].win;
-      for (let i = 0; i < team.length; i++) {
-        for (let j = i + 1; j < team.length; j++) {
-          const key = [team[i].nickname, team[j].nickname].sort().join("|||");
-          const entry = duoMap.get(key) || { wins: 0, total: 0 };
-          entry.total++;
-          if (win) entry.wins++;
-          duoMap.set(key, entry);
-        }
-      }
-    }
-
-    for (const bp of blue) {
-      for (const rp of red) {
-        const key = [bp.nickname, rp.nickname].sort().join("|||");
-        oppMap.set(key, (oppMap.get(key) || 0) + 1);
-      }
-    }
-  }
-
-  // 베스트 듀오 (같은 팀 승률 최고) / 워스트 듀오 (최소 3판) — 두 명 모두 자격 요건 충족
-  const bestDuoMin = Math.max(4, Math.min(10, Math.ceil(recentMatches.length * 0.3)));
-  const bothQualified = (key: string) => key.split("|||").every((n) => qualifiedSet.has(n));
-  let bestDuo: { key: string; wr: number; total: number } | null = null;
-  let worstDuo: { key: string; wr: number; total: number } | null = null;
-  for (const [key, { wins, total }] of duoMap) {
-    if (total < 3 || !bothQualified(key)) continue;
-    const wr = wins / total;
-    if (total >= bestDuoMin && (!bestDuo || wr > bestDuo.wr || (wr === bestDuo.wr && total > bestDuo.total)))
-      bestDuo = { key, wr, total };
-    if (!worstDuo || wr < worstDuo.wr || (wr === worstDuo.wr && total > worstDuo.total))
-      worstDuo = { key, wr, total };
-  }
-
-  if (bestDuo) {
-    const [p1, p2] = bestDuo.key.split("|||");
-    awards.push({ title: "베스트 듀오", emoji: "🤝", player: `${p1} & ${p2}`, value: `${(bestDuo.wr * 100).toFixed(0)}% (${bestDuo.total}판)` });
-  }
-
-  if (worstDuo) {
-    const [p1, p2] = worstDuo.key.split("|||");
-    awards.push({ title: "워스트 듀오", emoji: "💔", player: `${p1} & ${p2}`, value: `${(worstDuo.wr * 100).toFixed(0)}% (${worstDuo.total}판)` });
-  }
-
-  // 견우와 직녀 (적팀으로 가장 많이 만나고 같은 팀은 거의 없는 두 명)
-  let starCrossed: { key: string; oppGames: number; sameGames: number; ratio: number } | null = null;
-  for (const [key, oppGames] of oppMap) {
-    const sameGames = duoMap.get(key)?.total || 0;
-    const ratio = oppGames / (sameGames + 1);
-    if (oppGames < 3 || !bothQualified(key)) continue;
-    if (!starCrossed || ratio > starCrossed.ratio)
-      starCrossed = { key, oppGames, sameGames, ratio };
-  }
-
-  if (starCrossed) {
-    const [p1, p2] = starCrossed.key.split("|||");
-    awards.push({
-      title: "견우와 직녀",
-      emoji: "🌌",
-      player: `${p1} & ${p2}`,
-      value: `적팀 ${starCrossed.oppGames}회 / 같은팀 ${starCrossed.sameGames}회`,
-    });
-  }
+  // 듀오/라이벌 관련 어워즈는 별도 '듀오 상성' 탭에서 다루므로 여기서는 제외
 
   return awards;
 }
