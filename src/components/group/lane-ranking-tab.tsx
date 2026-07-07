@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import { buildLaneRankings } from "@/lib/stats";
+import { buildLaneRankings, LANE_RANK_MIN_GAMES } from "@/lib/stats";
 import type { PlayerStats } from "@/lib/stats";
 import type { Lane } from "@/lib/types";
 
@@ -24,7 +24,8 @@ export function LaneRankingTab({ playerStats }: { playerStats: PlayerStats[] }) 
   return (
     <div className="space-y-3">
       <p className="text-xs text-ink-tertiary">
-        포지션별로 해당 라인을 플레이한 선수를 <span className="text-ink-subtle">판수 보정 승률 + KDA</span> 기준으로 순위 매깁니다.
+        각 라인을 <span className="text-ink-subtle">{LANE_RANK_MIN_GAMES}판 이상</span> 플레이한 선수를{" "}
+        <span className="text-ink-subtle">승률순</span>으로 정렬합니다 (동률 시 판수 → KDA). 라인은 로비 순서 기준으로 배정됩니다.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

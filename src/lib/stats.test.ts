@@ -384,14 +384,31 @@ describe("buildLaneRankings", () => {
     expect(rankings.map((r) => r.lane)).toEqual(["top", "jungle", "mid", "adc", "support"]);
 
     const mid = rankings.find((r) => r.lane === "mid")!;
-    expect(mid.entries[0].nickname).toBe("Mid1"); // higher adjusted score
+    expect(mid.entries[0].nickname).toBe("Mid1"); // 100% win rate ranks first
     expect(mid.entries.map((e) => e.nickname)).toContain("Mid2");
 
     const jungle = rankings.find((r) => r.lane === "jungle")!;
     expect(jungle.entries).toHaveLength(0); // nobody played jungle
   });
 
-  it("excludes players below the minGames threshold", () => {
+  it("sorts strictly by win rate — displayed order matches the winRate column", () => {
+    // HighWR: 2 mid games, both won (100%); LowWR: 4 mid games, 3 wins (75%)
+    const matches = [
+      ...Array.from({ length: 2 }, () =>
+        match([ps({ nickname: "HighWR", team: "blue", win: true, lane: "mid" }), ps({ nickname: "z", team: "red", win: false, lane: "mid" })])
+      ),
+      ...Array.from({ length: 3 }, () =>
+        match([ps({ nickname: "LowWR", team: "blue", win: true, lane: "mid" }), ps({ nickname: "z", team: "red", win: false, lane: "mid" })])
+      ),
+      match([ps({ nickname: "LowWR", team: "blue", win: false, lane: "mid" }), ps({ nickname: "z", team: "red", win: true, lane: "mid" })]),
+    ];
+    const mid = buildLaneRankings(buildPlayerStats(group(matches))).find((r) => r.lane === "mid")!;
+    const names = mid.entries.map((e) => e.nickname);
+    // HighWR (100%, 2 games) ranks above LowWR (75%, 4 games) despite fewer games
+    expect(names.indexOf("HighWR")).toBeLessThan(names.indexOf("LowWR"));
+  });
+
+  it("excludes players below the minimum games threshold (default 2)", () => {
     const stats = buildPlayerStats(
       group([
         match([
@@ -400,7 +417,7 @@ describe("buildLaneRankings", () => {
         ]),
       ])
     );
-    const rankings = buildLaneRankings(stats, 2);
-    expect(rankings.find((r) => r.lane === "adc")!.entries).toHaveLength(0);
+    // only 1 game each → excluded by default threshold
+    expect(buildLaneRankings(stats).find((r) => r.lane === "adc")!.entries).toHaveLength(0);
   });
 });
