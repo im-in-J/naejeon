@@ -319,37 +319,135 @@ export interface LaneRanking {
   entries: LaneRankEntry[];
 }
 
-// 라인별 순위에 오르기 위한 최소 경기 수 (1판 표본은 순위에서 제외)
-export const LANE_RANK_MIN_GAMES = 2;
+// 라인별 순위에 오르기 위한 최소 경기 수
+export const LANE_RANK_MIN_GAMES = 5;
 
 const LANE_ORDER: Lane[] = ["top", "jungle", "mid", "adc", "support"];
 
+interface LaneAgg {
+  nickname: string;
+  games: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+  gold: number;
+  damage: number;
+  vision: number;
+  minutes: number;
+  kpSum: number; // 경기별 킬관여율 합
+  mvp: number;
+  ace: number;
+}
+
 /**
- * 포지션(라인)별 선수 순위. 각 라인에서 minGames 이상 플레이한 선수를
- * 선수별 성적 탭과 동일한 종합 점수(totalScore, 그룹 내 백분위 가중합)로
- * 내림차순 정렬한다. 점수는 화면에도 표시해 순서 근거가 드러나게 한다.
- * (동률 시 해당 라인 승률 → 판수) 라인 순서는 탑→정글→미드→원딜→서폿 고정.
+ * 포지션(라인)별 선수 순위. 각 라인에서 minGames 이상 플레이한 선수만 대상으로,
+ * "그 라인에서의 성적"만 반영한 점수로 정렬한다. 점수 공식은 선수별 성적의
+ * 종합 점수와 동일하되(승률 30% + MVP/ACE 15% + KDA 10% + 킬관여 10% + 분당CS 10%
+ * + 시야 10% + 골드당 딜 10% + 판수 5%, 신뢰도 계수 적용), 지표와 백분위를 모두
+ * 해당 라인 안에서 계산한다. 라인 순서는 탑→정글→미드→원딜→서폿 고정.
  */
 export function buildLaneRankings(
-  players: PlayerStats[],
+  group: Group,
   minGames = LANE_RANK_MIN_GAMES
 ): LaneRanking[] {
-  return LANE_ORDER.map((lane) => {
-    const entries = players
-      .map((p): LaneRankEntry | null => {
-        const ls = p.laneStats.find((l) => l.lane === lane);
-        if (!ls || ls.games < minGames) return null;
-        return {
-          nickname: p.nickname,
-          games: ls.games,
-          wins: ls.wins,
-          winRate: ls.winRate,
-          avgKda: ls.avgKda,
-          score: p.totalScore,
+  const perLane: Record<Lane, Map<string, LaneAgg>> = {
+    top: new Map(),
+    jungle: new Map(),
+    mid: new Map(),
+    adc: new Map(),
+    support: new Map(),
+  };
+
+  for (const m of group.matches) {
+    const minutes = parseDurationMinutes(m.gameDuration);
+    const teamKills = { blue: 0, red: 0 };
+    for (const p of m.players) teamKills[p.team] += p.kills;
+
+    for (const p of m.players) {
+      if (!p.lane) continue;
+      const map = perLane[p.lane];
+      const a =
+        map.get(p.nickname) ||
+        {
+          nickname: p.nickname, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0,
+          cs: 0, gold: 0, damage: 0, vision: 0, minutes: 0, kpSum: 0, mvp: 0, ace: 0,
         };
-      })
-      .filter((e): e is LaneRankEntry => e !== null)
-      .sort((a, b) => b.score - a.score || b.winRate - a.winRate || b.games - a.games);
+      a.games++;
+      if (p.win) a.wins++;
+      a.kills += p.kills;
+      a.deaths += p.deaths;
+      a.assists += p.assists;
+      a.cs += p.cs;
+      a.gold += p.gold;
+      a.damage += p.damageDealt || 0;
+      a.vision += p.visionScore || 0;
+      a.minutes += minutes;
+      const tk = teamKills[p.team];
+      a.kpSum += tk > 0 ? ((p.kills + p.assists) / tk) * 100 : 0;
+      if (p.isMvp) a.mvp++;
+      if (p.isAce) a.ace++;
+      map.set(p.nickname, a);
+    }
+  }
+
+  return LANE_ORDER.map((lane) => {
+    const aggs = Array.from(perLane[lane].values()).filter((a) => a.games >= minGames);
+    if (aggs.length === 0) return { lane, entries: [] };
+
+    // 라인 내 지표 (백분위 계산의 모수는 이 라인의 자격 선수들)
+    const metrics = aggs.map((a) => {
+      const kda = a.deaths === 0 ? (a.kills + a.assists) * 1.2 : (a.kills + a.assists) / a.deaths;
+      return {
+        nickname: a.nickname,
+        games: a.games,
+        wins: a.wins,
+        winRate: (a.wins / a.games) * 100,
+        avgKda: kda,
+        adjWinRate: ((a.wins + 5) / (a.games + 10)) * 100,
+        mvpAce: (a.mvp + a.ace * 0.5) / a.games,
+        kp: a.kpSum / a.games,
+        cs: a.minutes > 0 ? a.cs / a.minutes : 0,
+        vision: a.vision / a.games,
+        dpg: a.gold > 0 ? a.damage / a.gold : 0,
+      };
+    });
+
+    const col = (sel: (m: (typeof metrics)[number]) => number) => metrics.map(sel);
+    const pools = {
+      adjWinRate: col((m) => m.adjWinRate),
+      mvpAce: col((m) => m.mvpAce),
+      kda: col((m) => m.avgKda),
+      kp: col((m) => m.kp),
+      cs: col((m) => m.cs),
+      vision: col((m) => m.vision),
+      dpg: col((m) => m.dpg),
+      games: col((m) => m.games),
+    };
+
+    const entries: LaneRankEntry[] = metrics.map((m) => {
+      const base =
+        percentileOf(pools.adjWinRate, m.adjWinRate) * 0.3 +
+        percentileOf(pools.mvpAce, m.mvpAce) * 0.15 +
+        percentileOf(pools.kda, m.avgKda) * 0.1 +
+        percentileOf(pools.kp, m.kp) * 0.1 +
+        percentileOf(pools.cs, m.cs) * 0.1 +
+        percentileOf(pools.vision, m.vision) * 0.1 +
+        percentileOf(pools.dpg, m.dpg) * 0.1 +
+        percentileOf(pools.games, m.games) * 0.05;
+      const confidence = Math.sqrt(m.games / (m.games + 3));
+      return {
+        nickname: m.nickname,
+        games: m.games,
+        wins: m.wins,
+        winRate: m.winRate,
+        avgKda: m.avgKda,
+        score: base * confidence,
+      };
+    });
+
+    entries.sort((a, b) => b.score - a.score || b.winRate - a.winRate || b.games - a.games);
     return { lane, entries };
   });
 }

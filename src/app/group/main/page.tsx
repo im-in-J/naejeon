@@ -158,7 +158,7 @@ export default function MainGroupPage() {
       {/* Tab Content */}
       {tab === "players" && <PlayerStatsTab playerStats={playerStats} awards={awards} />}
       {tab === "champions" && <ChampionStatsTab championStats={championStats} />}
-      {tab === "lanes" && <LaneRankingTab playerStats={playerStats} />}
+      {tab === "lanes" && <LaneRankingTab group={group} />}
       {tab === "sides" && <TeamSideTab group={group} />}
       {tab === "duos" && <DuoTab group={group} />}
       {tab === "matches" && (

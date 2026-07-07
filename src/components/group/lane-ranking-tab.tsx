@@ -3,8 +3,7 @@
 import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { buildLaneRankings, LANE_RANK_MIN_GAMES } from "@/lib/stats";
-import type { PlayerStats } from "@/lib/stats";
-import type { Lane } from "@/lib/types";
+import type { Group, Lane } from "@/lib/types";
 
 const LANE_META: Record<Lane, { label: string; emoji: string }> = {
   top: { label: "탑", emoji: "🛡️" },
@@ -18,14 +17,14 @@ function rankColor(rank: number): string {
   return rank === 0 ? "rank-1" : rank === 1 ? "rank-2" : rank === 2 ? "rank-3" : "text-ink-tertiary";
 }
 
-export function LaneRankingTab({ playerStats }: { playerStats: PlayerStats[] }) {
-  const rankings = useMemo(() => buildLaneRankings(playerStats), [playerStats]);
+export function LaneRankingTab({ group }: { group: Group }) {
+  const rankings = useMemo(() => buildLaneRankings(group), [group]);
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-ink-tertiary">
-        각 라인을 <span className="text-ink-subtle">{LANE_RANK_MIN_GAMES}판 이상</span> 플레이한 선수를{" "}
-        <span className="text-ink-subtle">종합 점수</span>(선수별 성적의 그룹 내 백분위 점수)순으로 정렬합니다. 라인은 로비 순서 기준으로 배정됩니다.
+        각 라인에서 <span className="text-ink-subtle">{LANE_RANK_MIN_GAMES}판 이상</span> 플레이한 선수를,{" "}
+        <span className="text-ink-subtle">그 라인에서의 성적</span>만 반영한 점수(라인 내 백분위 가중합)순으로 정렬합니다. 라인은 로비 순서 기준으로 배정됩니다.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

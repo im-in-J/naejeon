@@ -366,12 +366,13 @@ describe("buildRadarStats", () => {
 // ─── buildLaneRankings ───
 
 describe("buildLaneRankings", () => {
-  it("ranks players per lane and keeps lane order top→jungle→mid→adc→support", () => {
+  it("ranks per lane by lane-specific score and keeps lane order top→jungle→mid→adc→support", () => {
+    // 5 mid games: Strong dominates, Weak loses; plus a low-sample top player
     const matches = [
-      ...Array.from({ length: 3 }, () =>
+      ...Array.from({ length: 5 }, () =>
         match([
-          ps({ nickname: "Mid1", team: "blue", win: true, lane: "mid", kills: 6, deaths: 1, assists: 4 }),
-          ps({ nickname: "Mid2", team: "red", win: false, lane: "mid" }),
+          ps({ nickname: "Strong", team: "blue", win: true, lane: "mid", kills: 8, deaths: 1, assists: 6, cs: 250, gold: 13000, damageDealt: 25000, visionScore: 30 }),
+          ps({ nickname: "Weak", team: "red", win: false, lane: "mid", kills: 1, deaths: 7, assists: 1, cs: 120, gold: 8000, damageDealt: 9000, visionScore: 10 }),
         ])
       ),
       match([
@@ -379,52 +380,40 @@ describe("buildLaneRankings", () => {
         ps({ nickname: "X", team: "red", win: false, lane: "top" }),
       ]),
     ];
-    const stats = buildPlayerStats(group(matches));
-    const rankings = buildLaneRankings(stats);
+    const rankings = buildLaneRankings(group(matches));
     expect(rankings.map((r) => r.lane)).toEqual(["top", "jungle", "mid", "adc", "support"]);
 
     const mid = rankings.find((r) => r.lane === "mid")!;
-    expect(mid.entries[0].nickname).toBe("Mid1"); // 100% win rate ranks first
-    expect(mid.entries.map((e) => e.nickname)).toContain("Mid2");
-
-    const jungle = rankings.find((r) => r.lane === "jungle")!;
-    expect(jungle.entries).toHaveLength(0); // nobody played jungle
-  });
-
-  it("ranks by the player's overall score (totalScore) and exposes that score", () => {
-    const matches = Array.from({ length: 4 }, () =>
-      match([
-        ps({ nickname: "Strong", team: "blue", win: true, lane: "mid", kills: 10, deaths: 1, assists: 8 }),
-        ps({ nickname: "Weak", team: "red", win: false, lane: "mid", kills: 1, deaths: 8, assists: 1 }),
-      ])
-    );
-    const stats = buildPlayerStats(group(matches));
-    const mid = buildLaneRankings(stats).find((r) => r.lane === "mid")!;
-
-    // entries are sorted by score descending
+    // sorted by score descending
     for (let i = 1; i < mid.entries.length; i++) {
       expect(mid.entries[i - 1].score).toBeGreaterThanOrEqual(mid.entries[i].score);
     }
-    // each entry's score equals that player's leaderboard totalScore
-    for (const e of mid.entries) {
-      const p = stats.find((s) => s.nickname === e.nickname)!;
-      expect(e.score).toBeCloseTo(p.totalScore, 5);
-    }
-    // the stronger overall player ranks first
-    const names = mid.entries.map((e) => e.nickname);
-    expect(names.indexOf("Strong")).toBeLessThan(names.indexOf("Weak"));
+    expect(mid.entries[0].nickname).toBe("Strong");
+    expect(mid.entries.map((e) => e.nickname)).toContain("Weak");
+
+    // Top1 played only 1 top game → below the 5-game floor → excluded
+    expect(rankings.find((r) => r.lane === "top")!.entries).toHaveLength(0);
+    expect(rankings.find((r) => r.lane === "jungle")!.entries).toHaveLength(0);
   });
 
-  it("excludes players below the minimum games threshold (default 2)", () => {
-    const stats = buildPlayerStats(
-      group([
-        match([
-          ps({ nickname: "A", team: "blue", win: true, lane: "adc" }),
-          ps({ nickname: "B", team: "red", win: false, lane: "adc" }),
-        ]),
-      ])
+  it("only counts games played in that specific lane", () => {
+    // A plays 5 games mid, B plays 5 games adc → each ranked only in their lane
+    const matches = [
+      ...Array.from({ length: 5 }, () =>
+        match([ps({ nickname: "A", team: "blue", win: true, lane: "mid" }), ps({ nickname: "B", team: "red", win: false, lane: "adc" })])
+      ),
+    ];
+    const r = buildLaneRankings(group(matches));
+    expect(r.find((x) => x.lane === "mid")!.entries.map((e) => e.nickname)).toEqual(["A"]);
+    expect(r.find((x) => x.lane === "adc")!.entries.map((e) => e.nickname)).toEqual(["B"]);
+    expect(r.find((x) => x.lane === "mid")!.entries[0].games).toBe(5);
+  });
+
+  it("excludes players below the 5-game floor", () => {
+    const matches = Array.from({ length: 4 }, () =>
+      match([ps({ nickname: "A", team: "blue", win: true, lane: "adc" }), ps({ nickname: "B", team: "red", win: false, lane: "adc" })])
     );
-    // only 1 game each → excluded by default threshold
-    expect(buildLaneRankings(stats).find((r) => r.lane === "adc")!.entries).toHaveLength(0);
+    // 4 games each → below default floor of 5
+    expect(buildLaneRankings(group(matches)).find((r) => r.lane === "adc")!.entries).toHaveLength(0);
   });
 });
