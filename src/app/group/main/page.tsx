@@ -191,37 +191,26 @@ export default function MainGroupPage() {
 
           <div>
             <h3 className="text-ink font-semibold mb-2">2단계: 실행</h3>
-            <p className="mb-2"><span className="text-ink font-medium">내전수집기.bat</span> 더블클릭하면 메뉴가 나옵니다:</p>
-            <div className="bg-surface-2 rounded-lg px-4 py-3 text-xs text-ink font-mono space-y-0.5">
-              <p>==========================================</p>
-              <p>&nbsp; 컴학내전 데이터 수집기</p>
-              <p>==========================================</p>
-              <p>&nbsp;</p>
-              <p>&nbsp; 1. 실시간 수집 (게임 끝나면 자동 업로드)</p>
-              <p>&nbsp; 2. 과거 경기 가져오기</p>
-              <p>&nbsp; 3. 종료</p>
-              <p>&nbsp;</p>
-              <p>&nbsp; 선택 (1/2/3): _</p>
-            </div>
+            <p className="mb-2"><span className="text-ink font-medium">내전수집기.bat</span> 더블클릭하면 수집기 창이 열립니다. (검은 콘솔 창 없이 프로그램 창만 뜹니다)</p>
           </div>
 
           <div>
-            <h3 className="text-ink font-semibold mb-2">메뉴 설명</h3>
+            <h3 className="text-ink font-semibold mb-2">기능 설명</h3>
             <div className="space-y-3">
               <div className="bg-surface-2/50 rounded-lg px-4 py-3">
-                <p className="text-ink font-medium text-xs mb-1">1번: 실시간 수집</p>
+                <p className="text-ink font-medium text-xs mb-1">실시간 수집 탭</p>
                 <ul className="list-disc list-inside space-y-0.5 text-xs">
-                  <li>롤 클라이언트 자동 감지</li>
+                  <li><span className="text-ink">▶ 실시간 수집 시작</span> 버튼 클릭 → 롤 클라이언트 자동 감지</li>
                   <li>게임 끝나면 자동 업로드 (딜량, 시야 등 전부)</li>
                   <li>내전 할 때 켜두면 됨</li>
                 </ul>
               </div>
               <div className="bg-surface-2/50 rounded-lg px-4 py-3">
-                <p className="text-ink font-medium text-xs mb-1">2번: 과거 경기 가져오기</p>
+                <p className="text-ink font-medium text-xs mb-1">과거 경기 가져오기 탭</p>
                 <ul className="list-disc list-inside space-y-0.5 text-xs">
-                  <li>최근 200경기 중 커스텀 게임 목록 표시</li>
-                  <li>원하는 경기 번호 입력 → 업로드</li>
-                  <li>예: <code className="bg-surface-2 px-1 rounded">1,3,5</code> 또는 <code className="bg-surface-2 px-1 rounded">1-5</code> 또는 <code className="bg-surface-2 px-1 rounded">all</code></li>
+                  <li><span className="text-ink">경기 불러오기</span> 클릭 → 최근 200경기 중 커스텀 게임 목록 표시</li>
+                  <li>목록에서 클릭으로 선택 (Ctrl/Shift 클릭 = 여러 개, 전체 선택 버튼도 있음)</li>
+                  <li><span className="text-ink">선택한 경기 업로드</span> 클릭하면 끝</li>
                 </ul>
               </div>
             </div>

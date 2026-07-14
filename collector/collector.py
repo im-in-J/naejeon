@@ -1,11 +1,12 @@
 """
-컴학내전 데이터 수집기
+컴학내전 데이터 수집기 (GUI)
 - 롤 클라이언트 자동 감지
-- 게임 종료 시 상세 데이터 추출
-- 서버로 자동 업로드
+- 게임 종료 시 상세 데이터 추출 → 서버 자동 업로드
+- 과거 커스텀 게임 조회 → 선택 업로드
 
-설치: Python 3만 있으면 됨 (외부 패키지 불필요)
-실행: python collector.py
+설치: Python 3만 있으면 됨 (외부 패키지 불필요, GUI는 내장 tkinter 사용)
+실행: 내전수집기.bat 더블클릭  (또는 python collector.py)
+콘솔 모드: python collector.py --cli / --history
 """
 
 import json
@@ -15,6 +16,7 @@ import re
 import sys
 import ssl
 import base64
+import threading
 import subprocess
 import urllib.request
 import urllib.error
@@ -32,6 +34,9 @@ EOG_RETRY_INTERVAL = 3  # 재시도 간격 (초)
 ssl_ctx = ssl.create_default_context()
 ssl_ctx.check_hostname = False
 ssl_ctx.verify_mode = ssl.CERT_NONE
+
+# 모듈 전역 로거 — GUI 모드에서 큐에 넣는 함수로 교체됨
+log = print
 
 
 def find_lockfile():
@@ -58,6 +63,7 @@ def find_credentials_from_process():
     """실행 중인 롤 클라이언트 프로세스에서 접속 정보 추출
     (설치 경로가 어디든 동작 — lockfile을 못 찾을 때의 폴백)"""
     try:
+        flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
         out = subprocess.run(
             [
                 "powershell", "-NoProfile", "-Command",
@@ -66,6 +72,7 @@ def find_credentials_from_process():
             ],
             capture_output=True,
             timeout=20,
+            creationflags=flags,
         ).stdout.decode("utf-8", errors="ignore")
     except Exception:
         return None
@@ -119,7 +126,7 @@ def lcu_request(lock_info, endpoint):
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return None
-        print(f"  HTTP 에러: {e.code}")
+        log(f"  HTTP 에러: {e.code}")
         return None
     except Exception:
         return None
@@ -173,7 +180,7 @@ def get_champion_map():
             data = json.loads(resp.read().decode())
         _champion_map = {int(v["key"]): v["id"] for v in data["data"].values()}
     except Exception as e:
-        print(f"  ⚠️  챔피언 목록 로드 실패 ({e}) — 챔피언이 숫자로 표시될 수 있습니다")
+        log(f"  ⚠️  챔피언 목록 로드 실패 ({e}) — 챔피언이 숫자로 표시될 수 있습니다")
         _champion_map = {}
     return _champion_map
 
@@ -302,24 +309,21 @@ def upload_match(match_data):
             return result
     except urllib.error.HTTPError as e:
         body = e.read().decode()
-        print(f"  업로드 실패: {e.code} - {body}")
+        log(f"  업로드 실패: {e.code} - {body}")
         return None
     except Exception as e:
-        print(f"  업로드 에러: {e}")
+        log(f"  업로드 에러: {e}")
         return None
 
 
 def print_match_summary(match_data):
     """매치 플레이어/팀 요약 출력"""
-    for mp in match_data["players"]:
-        print(f"    {mp['team']:4s} | {mp['nickname']:20s} | {mp['champion']}")
-
     blue = [p for p in match_data["players"] if p["team"] == "blue"]
     red = [p for p in match_data["players"] if p["team"] == "red"]
     blue_win = blue[0]["win"] if blue else False
 
-    print(f"  {'🔵 승' if blue_win else '🔵 패'}: {', '.join(p['champion'] for p in blue)}")
-    print(f"  {'🔴 승' if not blue_win else '🔴 패'}: {', '.join(p['champion'] for p in red)}")
+    log(f"  {'🔵 승' if blue_win else '🔵 패'}: {', '.join(p['nickname'] for p in blue)}")
+    log(f"  {'🔴 승' if not blue_win else '🔴 패'}: {', '.join(p['nickname'] for p in red)}")
 
 
 def enrich_from_history(lock_info, match_data, game_id):
@@ -381,7 +385,7 @@ def handle_end_of_game(lock_info, last_game_id):
             time.sleep(EOG_RETRY_INTERVAL)
 
     if not eog:
-        print("  ⚠️  EOG 데이터를 가져올 수 없습니다")
+        log("  ⚠️  EOG 데이터를 가져올 수 없습니다")
         return last_game_id
 
     game_id = eog.get("gameId")
@@ -391,27 +395,25 @@ def handle_end_of_game(lock_info, last_game_id):
     # 커스텀 게임 확인
     custom = is_custom_game(lock_info)
     if custom is False:
-        print("  ⏭️  커스텀 게임이 아니므로 건너뜁니다 (일반/랭크 게임)")
+        log("  ⏭️  커스텀 게임이 아니므로 건너뜁니다 (일반/랭크 게임)")
         return game_id  # 같은 게임을 반복 체크하지 않도록 기록
 
     match_data = format_match_data(eog)
     if not match_data or len(match_data["players"]) < 2:
-        print("  ⚠️  데이터 불완전, 건너뜁니다")
+        log("  ⚠️  데이터 불완전, 건너뜁니다")
         return game_id
 
     if custom is None and len(match_data["players"]) != 10:
-        print("  ⚠️  커스텀 여부 확인 불가 + 10명이 아니므로 건너뜁니다")
+        log("  ⚠️  커스텀 여부 확인 불가 + 10명이 아니므로 건너뜁니다")
         return game_id
 
-    print(f"  📊 {len(match_data['players'])}명 데이터 추출 완료")
-    print(f"  ⏱️  게임 시간: {match_data['gameDuration']}")
+    log(f"  📊 {len(match_data['players'])}명 데이터 추출 완료")
+    log(f"  ⏱️  게임 시간: {match_data['gameDuration']}")
 
     # 닉네임 누락 체크
     empty_names = [p for p in match_data["players"] if not p["nickname"]]
     if empty_names:
-        print(f"  ⚠️  닉네임 누락 {len(empty_names)}명! EOG 원본 키 덤프:")
-        for p in eog.get("teams", [{}])[0].get("players", [])[:1]:
-            print(f"    플레이어 키: {list(p.keys())}")
+        log(f"  ⚠️  닉네임 누락 {len(empty_names)}명!")
 
     print_match_summary(match_data)
 
@@ -422,92 +424,95 @@ def handle_end_of_game(lock_info, last_game_id):
         pass
 
     # 업로드
-    print("  📤 서버에 업로드 중...")
+    log("  📤 서버에 업로드 중...")
     result = upload_match(match_data)
     if result:
         if result.get("updated"):
-            print("  🔄 기존 경기 갱신 완료 (날짜·스탯 덮어쓰기)")
+            log("  🔄 기존 경기 갱신 완료 (날짜·스탯 덮어쓰기)")
         elif result.get("duplicate"):
-            print("  ℹ️  이미 등록된 게임입니다 (중복 업로드 방지)")
+            log("  ℹ️  이미 등록된 게임입니다 (중복 업로드 방지)")
         else:
-            print("  ✅ 업로드 성공!")
+            log("  ✅ 업로드 성공!")
     else:
         # 로컬 백업 저장
         backup_path = f"match_backup_{game_id}.json"
         with open(backup_path, "w", encoding="utf-8") as f:
             json.dump(match_data, f, ensure_ascii=False, indent=2)
-        print(f"  ⚠️  업로드 실패. 로컬 백업 저장: {backup_path}")
+        log(f"  ⚠️  업로드 실패. 로컬 백업 저장: {backup_path}")
 
     return game_id
 
 
-def main():
-    print("=" * 50)
-    print("  컴학내전 데이터 수집기")
-    print("=" * 50)
-    print(f"  서버: {SERVER_URL}")
-    print(f"  클라이언트 감지 간격: {POLL_INTERVAL}초")
-    print()
+PHASE_NAMES = {
+    None: "클라이언트 응답 대기",
+    "None": "대기",
+    "Lobby": "로비",
+    "Matchmaking": "매칭 중",
+    "ReadyCheck": "수락 대기",
+    "ChampSelect": "챔피언 선택",
+    "GameStart": "게임 시작",
+}
 
+IN_GAME_PHASES = ("InProgress", "WaitingForStats", "PreEndOfGame", "Reconnect")
+
+
+def realtime_loop(stop_event, set_status):
+    """실시간 수집 루프. stop_event가 set되면 종료.
+    set_status(text)로 현재 상태를 한 줄로 알림 (GUI 상태 표시줄 / 콘솔 출력)"""
     last_game_id = None
     was_in_game = False
     client_found = False
     last_phase = "__init__"
 
-    while True:
+    while not stop_event.is_set():
         # 1. 클라이언트 접속 정보 찾기 (lockfile → 프로세스 순)
         lock_info = get_credentials()
         if not lock_info:
-            print("  롤 클라이언트를 찾는 중... (로그인된 롤 클라이언트가 켜져 있어야 합니다)")
+            set_status("롤 클라이언트를 찾는 중... (로그인된 롤 클라이언트가 켜져 있어야 합니다)")
             client_found = False
-            time.sleep(POLL_INTERVAL)
+            if stop_event.wait(POLL_INTERVAL):
+                break
             continue
 
         if not client_found:
-            print("  ✅ 롤 클라이언트 감지 완료")
+            log("  ✅ 롤 클라이언트 감지 완료")
             client_found = True
 
         # 2. 게임 상태 확인
         phase = get_game_phase(lock_info)
 
-        # 대기 상태가 바뀔 때마다 한 줄씩 출력 (멈춘 것처럼 보이지 않게)
-        in_game_phases = ("InProgress", "WaitingForStats", "PreEndOfGame", "Reconnect", "EndOfGame")
         if phase != last_phase:
-            if phase not in in_game_phases:
-                phase_names = {
-                    None: "클라이언트 응답 대기",
-                    "None": "대기",
-                    "Lobby": "로비",
-                    "Matchmaking": "매칭 중",
-                    "ReadyCheck": "수락 대기",
-                    "ChampSelect": "챔피언 선택",
-                    "GameStart": "게임 시작",
-                }
-                print(f"  ⏳ 게임 시작을 기다리는 중... (현재: {phase_names.get(phase, phase)})")
+            if phase not in IN_GAME_PHASES and phase != "EndOfGame":
+                set_status(f"게임 시작을 기다리는 중 (현재: {PHASE_NAMES.get(phase, phase)})")
             last_phase = phase
 
         # 게임 중 (종료 대기 화면 포함 — WaitingForStats/PreEndOfGame에서
         # 플래그를 리셋하면 EndOfGame을 놓치므로 반드시 '게임 중'으로 취급)
-        if phase in ("InProgress", "WaitingForStats", "PreEndOfGame", "Reconnect"):
+        if phase in IN_GAME_PHASES:
             if not was_in_game:
-                print("  🎮 게임 진행 중... 종료를 기다리는 중")
+                log("  🎮 게임 진행 중... 종료를 기다리는 중")
                 was_in_game = True
-            time.sleep(GAME_CHECK_INTERVAL)
+            set_status("게임 진행 중 — 종료를 기다리는 중")
+            if stop_event.wait(GAME_CHECK_INTERVAL):
+                break
             continue
 
         if phase == "EndOfGame":
             # 수집기를 게임 종료 후에 켰어도 처리되도록 was_in_game과 무관하게 시도
             # (중복은 game_id + 서버 측 중복 방지로 걸러짐)
             if was_in_game:
-                print("  ✅ 게임 종료 감지! 데이터 추출 중...")
+                log("  ✅ 게임 종료 감지! 데이터 추출 중...")
+            set_status("게임 종료 — 데이터 추출/업로드 중")
             last_game_id = handle_end_of_game(lock_info, last_game_id)
             was_in_game = False
-            time.sleep(GAME_CHECK_INTERVAL)
+            if stop_event.wait(GAME_CHECK_INTERVAL):
+                break
             continue
 
         # 대기 상태
         was_in_game = False
-        time.sleep(POLL_INTERVAL)
+        if stop_event.wait(POLL_INTERVAL):
+            break
 
 
 def get_current_puuid(lock_info):
@@ -601,6 +606,467 @@ def format_history_match(game):
     }
 
 
+def fetch_custom_games(lock_info):
+    """매치 히스토리에서 커스텀 게임만 필터해 반환"""
+    games = get_match_history(lock_info, 200)
+    return [
+        g for g in games
+        if g.get("queueId", -1) == 0 or g.get("gameType") == "CUSTOM_GAME"
+    ]
+
+
+def upload_history_game(lock_info, game, label=""):
+    """과거 게임 1개 상세 조회 → 업로드. 성공 여부 반환"""
+    game_id = game.get("gameId")
+    if not game_id:
+        log(f"  {label} ⚠️  gameId 없음, 건너뜀")
+        return False
+
+    # 전체 10명 데이터 조회 (목록에는 본인만 들어있음)
+    full_game = get_full_game(lock_info, game_id)
+    if not full_game:
+        log(f"  {label} ⚠️  상세 데이터 조회 실패, 건너뜀")
+        return False
+
+    match_data = format_history_match(full_game)
+    if not match_data or len(match_data["players"]) < 2:
+        log(f"  {label} ⚠️  데이터 불완전, 건너뜀")
+        return False
+
+    blue = [p for p in match_data["players"] if p["team"] == "blue"]
+    red = [p for p in match_data["players"] if p["team"] == "red"]
+    blue_names = ", ".join(p["nickname"] for p in blue)
+    red_names = ", ".join(p["nickname"] for p in red)
+    log(f"  {label} {match_data['gameDuration']} | {blue_names} vs {red_names}")
+
+    result = upload_match(match_data)
+    if result:
+        if result.get("updated"):
+            log("       🔄 기존 경기 갱신 (날짜·스탯 덮어쓰기)")
+            return True
+        if result.get("duplicate"):
+            log("       ℹ️  이미 등록된 게임 (건너뜀)")
+            return False
+        log("       ✅ 업로드 성공!")
+        return True
+    log("       ❌ 업로드 실패")
+    return False
+
+
+def history_game_summary(game):
+    """히스토리 목록 한 줄 요약: (날짜, 시간, 내 챔피언, 승패)"""
+    duration = format_duration(game.get("gameDuration", 0))
+    timestamp = game.get("gameCreation", 0) / 1000
+    date_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M") if timestamp else "?"
+    # 히스토리 목록에는 본인 참가자만 들어있음 → 내 챔피언/승패만 표시
+    me = (game.get("participants") or [{}])[0]
+    my_champ = champion_id_to_name(me.get("championId"))
+    my_win = me.get("stats", {}).get("win", False)
+    return date_str, duration, my_champ, my_win
+
+
+# ═══════════════════════════════════════════════
+#  GUI (tkinter — 파이썬 기본 내장)
+# ═══════════════════════════════════════════════
+
+# 다크 테마 색상
+C_BG = "#16171c"
+C_PANEL = "#1e2027"
+C_PANEL2 = "#262933"
+C_FG = "#e7e9ee"
+C_MUTED = "#9aa0ad"
+C_ACCENT = "#5b8cff"
+C_ACCENT_HOVER = "#6f9aff"
+C_GREEN = "#3ecf8e"
+C_RED = "#f06a6a"
+C_BORDER = "#33363f"
+
+
+class CollectorGUI:
+    def __init__(self, root):
+        import tkinter as tk
+        from tkinter import ttk
+        import queue
+
+        self.tk = tk
+        self.ttk = ttk
+        self.root = root
+        self.ui_queue = queue.Queue()
+        self.stop_event = None
+        self.worker = None
+        self.custom_games = []
+        self.lock_info_for_history = None
+        self.busy = False
+
+        # 전역 log를 GUI 큐로 교체 (워커 스레드에서 호출됨)
+        global log
+        log = self.log_from_thread
+
+        root.title("컴학내전 데이터 수집기")
+        root.geometry("760x600")
+        root.minsize(620, 480)
+        root.configure(bg=C_BG)
+        root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self._setup_style()
+        self._build_layout()
+
+        self.log(f"서버: {SERVER_URL}")
+        self.log("[실시간 수집 시작] 버튼을 누르면 게임 종료 시 자동으로 업로드됩니다.")
+        root.after(100, self._poll_queue)
+
+    # ─── 스타일 ───
+
+    def _setup_style(self):
+        ttk = self.ttk
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+
+        style.configure(".", background=C_BG, foreground=C_FG, fieldbackground=C_PANEL)
+        style.configure("TNotebook", background=C_BG, borderwidth=0)
+        style.configure("TNotebook.Tab", background=C_PANEL, foreground=C_MUTED,
+                        padding=(18, 8), borderwidth=0, font=("맑은 고딕", 10))
+        style.map("TNotebook.Tab",
+                  background=[("selected", C_PANEL2)],
+                  foreground=[("selected", C_FG)])
+        style.configure("TFrame", background=C_BG)
+        style.configure("Panel.TFrame", background=C_PANEL)
+
+        style.configure("Treeview", background=C_PANEL, foreground=C_FG,
+                        fieldbackground=C_PANEL, borderwidth=0, rowheight=26,
+                        font=("맑은 고딕", 9))
+        style.configure("Treeview.Heading", background=C_PANEL2, foreground=C_MUTED,
+                        borderwidth=0, font=("맑은 고딕", 9, "bold"))
+        style.map("Treeview",
+                  background=[("selected", C_ACCENT)],
+                  foreground=[("selected", "#ffffff")])
+        style.configure("Vertical.TScrollbar", background=C_PANEL2,
+                        troughcolor=C_BG, borderwidth=0, arrowcolor=C_MUTED)
+
+    def _button(self, parent, text, command, primary=False, **kw):
+        tk = self.tk
+        btn = tk.Button(
+            parent, text=text, command=command,
+            bg=C_ACCENT if primary else C_PANEL2,
+            fg="#ffffff" if primary else C_FG,
+            activebackground=C_ACCENT_HOVER if primary else C_BORDER,
+            activeforeground="#ffffff",
+            relief="flat", bd=0, cursor="hand2",
+            font=("맑은 고딕", 10, "bold" if primary else "normal"),
+            padx=16, pady=7, **kw,
+        )
+        return btn
+
+    # ─── 레이아웃 ───
+
+    def _build_layout(self):
+        tk, ttk = self.tk, self.ttk
+
+        # 헤더
+        header = tk.Frame(self.root, bg=C_BG)
+        header.pack(fill="x", padx=16, pady=(14, 8))
+        tk.Label(header, text="컴학내전 데이터 수집기", bg=C_BG, fg=C_FG,
+                 font=("맑은 고딕", 14, "bold")).pack(side="left")
+        self.server_label = tk.Label(header, text=SERVER_URL.replace("https://", ""),
+                                     bg=C_BG, fg=C_MUTED, font=("맑은 고딕", 9))
+        self.server_label.pack(side="right")
+
+        # 탭
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+
+        self._build_realtime_tab()
+        self._build_history_tab()
+
+        # 로그 (공용)
+        log_frame = tk.Frame(self.root, bg=C_BG)
+        log_frame.pack(fill="both", expand=True, padx=16, pady=(0, 12))
+        tk.Label(log_frame, text="로그", bg=C_BG, fg=C_MUTED,
+                 font=("맑은 고딕", 9)).pack(anchor="w")
+        text_wrap = tk.Frame(log_frame, bg=C_BORDER)
+        text_wrap.pack(fill="both", expand=True, pady=(4, 0))
+        self.log_text = tk.Text(
+            text_wrap, height=9, bg=C_PANEL, fg=C_FG, bd=0,
+            insertbackground=C_FG, wrap="word", state="disabled",
+            font=("Consolas", 9), padx=10, pady=8,
+        )
+        scroll = tk.Scrollbar(text_wrap, command=self.log_text.yview,
+                              bg=C_PANEL2, troughcolor=C_BG, bd=0)
+        self.log_text.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y", padx=(0, 1), pady=1)
+        self.log_text.pack(fill="both", expand=True, padx=1, pady=1)
+
+    def _build_realtime_tab(self):
+        tk = self.tk
+        tab = tk.Frame(self.notebook, bg=C_PANEL2)
+        self.notebook.add(tab, text="  실시간 수집  ")
+
+        inner = tk.Frame(tab, bg=C_PANEL2)
+        inner.pack(fill="both", expand=True, padx=24, pady=20)
+
+        tk.Label(inner, text="게임이 끝나면 자동으로 서버에 업로드합니다.",
+                 bg=C_PANEL2, fg=C_MUTED, font=("맑은 고딕", 10)).pack(anchor="w")
+        tk.Label(inner, text="내전 하는 동안 켜두기만 하면 됩니다. (커스텀 게임만 업로드)",
+                 bg=C_PANEL2, fg=C_MUTED, font=("맑은 고딕", 10)).pack(anchor="w", pady=(2, 14))
+
+        row = tk.Frame(inner, bg=C_PANEL2)
+        row.pack(fill="x")
+        self.start_btn = self._button(row, "▶  실시간 수집 시작", self.toggle_realtime, primary=True)
+        self.start_btn.pack(side="left")
+
+        status_row = tk.Frame(inner, bg=C_PANEL2)
+        status_row.pack(fill="x", pady=(16, 0))
+        self.status_dot = tk.Label(status_row, text="●", bg=C_PANEL2, fg=C_MUTED,
+                                   font=("맑은 고딕", 11))
+        self.status_dot.pack(side="left")
+        self.status_label = tk.Label(status_row, text="대기 중 — 시작 버튼을 눌러주세요",
+                                     bg=C_PANEL2, fg=C_MUTED, font=("맑은 고딕", 10))
+        self.status_label.pack(side="left", padx=(6, 0))
+
+    def _build_history_tab(self):
+        tk, ttk = self.tk, self.ttk
+        tab = tk.Frame(self.notebook, bg=C_PANEL2)
+        self.notebook.add(tab, text="  과거 경기 가져오기  ")
+
+        inner = tk.Frame(tab, bg=C_PANEL2)
+        inner.pack(fill="both", expand=True, padx=24, pady=16)
+
+        toolbar = tk.Frame(inner, bg=C_PANEL2)
+        toolbar.pack(fill="x", pady=(0, 10))
+        self.load_btn = self._button(toolbar, "경기 불러오기", self.load_history)
+        self.load_btn.pack(side="left")
+        self.select_all_btn = self._button(toolbar, "전체 선택", self.select_all_games)
+        self.select_all_btn.pack(side="left", padx=(8, 0))
+        self.upload_btn = self._button(toolbar, "선택한 경기 업로드", self.upload_selected, primary=True)
+        self.upload_btn.pack(side="right")
+
+        hint = tk.Label(inner, text="Ctrl/Shift 클릭으로 여러 경기를 선택할 수 있습니다. (목록에는 내 챔피언/승패만 표시)",
+                        bg=C_PANEL2, fg=C_MUTED, font=("맑은 고딕", 9))
+        hint.pack(anchor="w", pady=(0, 6))
+
+        tree_wrap = tk.Frame(inner, bg=C_BORDER)
+        tree_wrap.pack(fill="both", expand=True)
+        columns = ("no", "date", "duration", "champ", "result")
+        self.tree = ttk.Treeview(tree_wrap, columns=columns, show="headings",
+                                 selectmode="extended")
+        self.tree.heading("no", text="#")
+        self.tree.heading("date", text="날짜")
+        self.tree.heading("duration", text="게임 시간")
+        self.tree.heading("champ", text="내 챔피언")
+        self.tree.heading("result", text="결과")
+        self.tree.column("no", width=44, anchor="center", stretch=False)
+        self.tree.column("date", width=150, anchor="center")
+        self.tree.column("duration", width=90, anchor="center", stretch=False)
+        self.tree.column("champ", width=140, anchor="center")
+        self.tree.column("result", width=70, anchor="center", stretch=False)
+        self.tree.tag_configure("win", foreground=C_GREEN)
+        self.tree.tag_configure("loss", foreground=C_RED)
+
+        tree_scroll = ttk.Scrollbar(tree_wrap, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=tree_scroll.set)
+        tree_scroll.pack(side="right", fill="y", padx=(0, 1), pady=1)
+        self.tree.pack(fill="both", expand=True, padx=1, pady=1)
+
+    # ─── 로그/상태 (스레드 → UI 큐) ───
+
+    def log_from_thread(self, *args):
+        self.ui_queue.put(("log", " ".join(str(a) for a in args)))
+
+    def log(self, text):
+        self.log_text.configure(state="normal")
+        stamp = datetime.now().strftime("%H:%M:%S")
+        self.log_text.insert("end", f"[{stamp}] {text.strip()}\n")
+        self.log_text.see("end")
+        self.log_text.configure(state="disabled")
+
+    def set_status_from_thread(self, text):
+        self.ui_queue.put(("status", text))
+
+    def _poll_queue(self):
+        try:
+            while True:
+                kind, payload = self.ui_queue.get_nowait()
+                if kind == "log":
+                    self.log(payload)
+                elif kind == "status":
+                    self.status_label.configure(text=payload)
+                elif kind == "games":
+                    self._show_games(payload)
+                elif kind == "busy_done":
+                    self._set_busy(False)
+        except Exception:
+            pass
+        self.root.after(100, self._poll_queue)
+
+    def _set_busy(self, busy):
+        self.busy = busy
+        state = "disabled" if busy else "normal"
+        for btn in (self.load_btn, self.upload_btn, self.select_all_btn):
+            btn.configure(state=state)
+
+    # ─── 실시간 수집 ───
+
+    def toggle_realtime(self):
+        if self.stop_event is None:
+            self.stop_event = threading.Event()
+            self.worker = threading.Thread(
+                target=self._realtime_worker, daemon=True)
+            self.worker.start()
+            self.start_btn.configure(text="■  실시간 수집 중지", bg=C_RED,
+                                     activebackground="#ff8080")
+            self.status_dot.configure(fg=C_GREEN)
+            self.status_label.configure(text="시작됨 — 롤 클라이언트를 찾는 중...")
+            self.log("실시간 수집을 시작합니다.")
+        else:
+            self.stop_event.set()
+            self.stop_event = None
+            self.start_btn.configure(text="▶  실시간 수집 시작", bg=C_ACCENT,
+                                     activebackground=C_ACCENT_HOVER)
+            self.status_dot.configure(fg=C_MUTED)
+            self.status_label.configure(text="대기 중 — 시작 버튼을 눌러주세요")
+            self.log("실시간 수집을 중지했습니다.")
+
+    def _realtime_worker(self):
+        stop = self.stop_event
+        try:
+            realtime_loop(stop, self.set_status_from_thread)
+        except Exception as e:
+            self.log_from_thread(f"⚠️  수집 루프 오류: {e}")
+
+    # ─── 과거 경기 ───
+
+    def load_history(self):
+        if self.busy:
+            return
+        self._set_busy(True)
+        self.log("매치 히스토리 조회 중...")
+        threading.Thread(target=self._load_history_worker, daemon=True).start()
+
+    def _load_history_worker(self):
+        try:
+            lock_info = get_credentials()
+            if not lock_info:
+                self.log_from_thread("❌ 롤 클라이언트를 찾을 수 없습니다. 리엇 런처 말고, 로그인 후 뜨는 롤 클라이언트(로비 화면)가 켜져 있어야 합니다.")
+                self.ui_queue.put(("games", []))
+                return
+            self.lock_info_for_history = lock_info
+            games = fetch_custom_games(lock_info)
+            if not games:
+                self.log_from_thread("최근 200경기 중 커스텀 게임이 없습니다.")
+            self.ui_queue.put(("games", games))
+        except Exception as e:
+            self.log_from_thread(f"⚠️  조회 실패: {e}")
+            self.ui_queue.put(("games", []))
+        finally:
+            self.ui_queue.put(("busy_done", None))
+
+    def _show_games(self, games):
+        self.custom_games = games
+        self.tree.delete(*self.tree.get_children())
+        for i, game in enumerate(games):
+            date_str, duration, my_champ, my_win = history_game_summary(game)
+            self.tree.insert(
+                "", "end", iid=str(i),
+                values=(i + 1, date_str, duration, my_champ, "승" if my_win else "패"),
+                tags=("win" if my_win else "loss",),
+            )
+        if games:
+            self.log(f"커스텀 게임 {len(games)}개를 찾았습니다. 업로드할 경기를 선택하세요.")
+            self.notebook.select(1)
+
+    def select_all_games(self):
+        self.tree.selection_set(self.tree.get_children())
+
+    def upload_selected(self):
+        if self.busy:
+            return
+        selected = [int(i) for i in self.tree.selection()]
+        if not selected:
+            self.log("⚠️  선택된 경기가 없습니다. 목록에서 경기를 클릭해 선택하세요.")
+            return
+        self._set_busy(True)
+        threading.Thread(target=self._upload_worker, args=(sorted(selected),), daemon=True).start()
+
+    def _upload_worker(self, indices):
+        try:
+            lock_info = self.lock_info_for_history or get_credentials()
+            if not lock_info:
+                self.log_from_thread("❌ 롤 클라이언트를 찾을 수 없습니다.")
+                return
+            self.log_from_thread(f"{len(indices)}개 경기 업로드 시작...")
+            success = 0
+            for idx in indices:
+                if upload_history_game(lock_info, self.custom_games[idx], label=f"[{idx + 1}]"):
+                    success += 1
+            self.log_from_thread(f"완료: {success}/{len(indices)} 업로드됨")
+        except Exception as e:
+            self.log_from_thread(f"⚠️  업로드 실패: {e}")
+        finally:
+            self.ui_queue.put(("busy_done", None))
+
+    def on_close(self):
+        if self.stop_event is not None:
+            self.stop_event.set()
+        self.root.destroy()
+
+
+def run_gui():
+    try:
+        import tkinter as tk
+    except ImportError:
+        # tkinter가 없는 환경(임베디드 파이썬 등) — 안내 후 콘솔 모드로
+        _show_windows_alert(
+            "이 파이썬에는 tkinter(GUI)가 없습니다.\n"
+            "python.org 설치 파이썬을 사용하거나,\n"
+            "콘솔 모드로 실행하세요: python collector.py --cli"
+        )
+        return cli_main()
+
+    try:
+        # 고해상도 모니터에서 흐릿하게 보이는 것 방지
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+
+    root = tk.Tk()
+    CollectorGUI(root)
+    root.mainloop()
+
+
+def _show_windows_alert(message):
+    """콘솔 없이(pythonw) 실행됐을 때도 보이는 안내창"""
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, message, "컴학내전 수집기", 0x10)
+    except Exception:
+        print(message)
+
+
+# ═══════════════════════════════════════════════
+#  콘솔 모드 (--cli / --history)
+# ═══════════════════════════════════════════════
+
+
+def cli_main():
+    print("=" * 50)
+    print("  컴학내전 데이터 수집기")
+    print("=" * 50)
+    print(f"  서버: {SERVER_URL}")
+    print(f"  클라이언트 감지 간격: {POLL_INTERVAL}초")
+    print()
+
+    stop_event = threading.Event()
+
+    def set_status(text):
+        print(f"  ⏳ {text}")
+
+    realtime_loop(stop_event, set_status)
+
+
 def parse_selection(choice, total):
     """선택 입력 파싱: '1,3,5' / '1-5' / 'all' → 인덱스 리스트 (실패 시 None)"""
     if choice.lower() == "all":
@@ -625,7 +1091,7 @@ def parse_selection(choice, total):
 
 
 def history_mode():
-    """과거 커스텀 게임 조회 → 선택 업로드"""
+    """과거 커스텀 게임 조회 → 선택 업로드 (콘솔)"""
     print("=" * 50)
     print("  컴학내전 — 과거 경기 가져오기")
     print("=" * 50)
@@ -637,36 +1103,17 @@ def history_mode():
         return
 
     print("  클라이언트 감지 완료. 매치 히스토리 조회 중...")
-    games = get_match_history(lock_info, 200)
-
-    if not games:
-        print("  ❌ 매치 히스토리를 가져올 수 없습니다.")
-        return
-
-    # 커스텀 게임만 필터 (queueId=0 또는 gameType="CUSTOM_GAME")
-    custom_games = [
-        g for g in games
-        if g.get("queueId", -1) == 0 or g.get("gameType") == "CUSTOM_GAME"
-    ]
+    custom_games = fetch_custom_games(lock_info)
 
     if not custom_games:
-        print(f"  최근 {len(games)}경기 중 커스텀 게임이 없습니다.")
+        print("  커스텀 게임이 없거나 매치 히스토리를 가져올 수 없습니다.")
         return
 
     print(f"\n  커스텀 게임 {len(custom_games)}개 발견:\n")
     print("  (목록에는 내 정보만 표시됩니다. 전체 명단은 선택 후 조회됩니다)\n")
 
     for i, game in enumerate(custom_games):
-        duration = format_duration(game.get("gameDuration", 0))
-
-        timestamp = game.get("gameCreation", 0) / 1000
-        date_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M") if timestamp else "?"
-
-        # 히스토리 목록에는 본인 참가자만 들어있음 → 내 챔피언/승패만 표시
-        me = (game.get("participants") or [{}])[0]
-        my_champ = champion_id_to_name(me.get("championId"))
-        my_win = me.get("stats", {}).get("win", False)
-
+        date_str, duration, my_champ, my_win = history_game_summary(game)
         print(f"  [{i+1:2d}] {date_str}  ({duration})  {my_champ:15s} {'✅ 승' if my_win else '❌ 패'}")
 
     # 사용자 선택
@@ -694,42 +1141,8 @@ def history_mode():
 
     success = 0
     for idx in selected:
-        game_id = custom_games[idx].get("gameId")
-        if not game_id:
-            print(f"  [{idx+1}] ⚠️  gameId 없음, 건너뜀")
-            continue
-
-        # 전체 10명 데이터 조회 (목록에는 본인만 들어있음)
-        full_game = get_full_game(lock_info, game_id)
-        if not full_game:
-            print(f"  [{idx+1}] ⚠️  상세 데이터 조회 실패, 건너뜀")
-            continue
-
-        match_data = format_history_match(full_game)
-
-        if not match_data or len(match_data["players"]) < 2:
-            print(f"  [{idx+1}] ⚠️  데이터 불완전, 건너뜀")
-            continue
-
-        # 플레이어 확인
-        blue = [p for p in match_data["players"] if p["team"] == "blue"]
-        red = [p for p in match_data["players"] if p["team"] == "red"]
-        blue_names = ", ".join(p["nickname"] for p in blue)
-        red_names = ", ".join(p["nickname"] for p in red)
-        print(f"  [{idx+1}] {match_data['gameDuration']} | {blue_names} vs {red_names}")
-
-        result = upload_match(match_data)
-        if result:
-            if result.get("updated"):
-                print("       🔄 기존 경기 갱신 (날짜·스탯 덮어쓰기)")
-                success += 1
-            elif result.get("duplicate"):
-                print("       ℹ️  이미 등록된 게임 (건너뜀)")
-            else:
-                print("       ✅ 업로드 성공!")
-                success += 1
-        else:
-            print("       ❌ 업로드 실패")
+        if upload_history_game(lock_info, custom_games[idx], label=f"[{idx+1}]"):
+            success += 1
 
     print(f"\n  완료: {success}/{len(selected)} 업로드됨")
 
@@ -738,7 +1151,9 @@ if __name__ == "__main__":
     try:
         if len(sys.argv) > 1 and sys.argv[1] == "--history":
             history_mode()
+        elif len(sys.argv) > 1 and sys.argv[1] == "--cli":
+            cli_main()
         else:
-            main()
+            run_gui()
     except KeyboardInterrupt:
         print("\n  종료합니다.")
