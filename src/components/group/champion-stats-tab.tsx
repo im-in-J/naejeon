@@ -8,7 +8,6 @@ import { ChampionIcon } from "@/components/ui/champion-icon";
 import { buildChampionStats, type ChampionStats } from "@/lib/stats";
 import type { Group, Lane } from "@/lib/types";
 
-type ViewMode = "tierlist" | "table";
 type LaneFilter = "all" | Lane;
 
 const LANE_TABS: { key: LaneFilter; label: string }[] = [
@@ -20,51 +19,58 @@ const LANE_TABS: { key: LaneFilter; label: string }[] = [
   { key: "support", label: "💚 서폿" },
 ];
 
-interface TierDef {
-  tier: string;
-  label: string;
-  color: string;
-  bg: string;
-  border: string;
-  min: number;
-  max: number;
+// ─── PS(lol.ps) 방식 티어 산정 ───
+// PS점수 = 50 + 3×z(보정승률) + 2×z(픽률) + 0.5×z(밴률)
+//   - z는 현재 라인 풀(2판 이상 챔피언) 내 표준화 값
+//   - 승률은 판수 보정(스무딩): (승 + 2.5) / (판수 + 5)
+// 티어 컷(PS점수 분포 기준): OP ≥ +1.75σ, 1티어 ≥ +1.25σ, 2티어 ≥ +0.5σ,
+//   3티어 ≥ 평균, 4티어 ≥ -1.25σ, 5티어 < -1.25σ
+
+interface PsEntry {
+  score: number;
+  tier: string; // "1" ~ "5"
+  isOp: boolean;
 }
 
-const TIERS: TierDef[] = [
-  { tier: "S", label: "S 티어", color: "text-red-400", bg: "bg-red-500/8", border: "border-red-500/20", min: 75, max: 999 },
-  { tier: "A", label: "A 티어", color: "text-orange-400", bg: "bg-orange-500/8", border: "border-orange-500/20", min: 60, max: 75 },
-  { tier: "B", label: "B 티어", color: "text-yellow-400", bg: "bg-yellow-500/8", border: "border-yellow-500/20", min: 45, max: 60 },
-  { tier: "C", label: "C 티어", color: "text-blue-400", bg: "bg-blue-500/8", border: "border-blue-500/20", min: 30, max: 45 },
-  { tier: "D", label: "D 티어", color: "text-ink-subtle", bg: "bg-surface-2", border: "border-hairline", min: 0, max: 30 },
-];
+const TIER_STYLE: Record<string, string> = {
+  "1": "text-red-400",
+  "2": "text-orange-400",
+  "3": "text-yellow-400",
+  "4": "text-blue-400",
+  "5": "text-ink-subtle",
+};
 
-// 티어 점수: 승률 60% + KDA 40% → 0~100 스케일
-function getTierScore(champ: ChampionStats): number {
-  const wrScore = champ.winRate; // 0~100
-  const kdaCapped = Math.min(champ.avgKda, 8); // 8 이상은 cap
-  const kdaScore = (kdaCapped / 8) * 100; // 0~100
-  return wrScore * 0.6 + kdaScore * 0.4;
+function zScorer(values: number[]): (v: number) => number {
+  const mean = values.reduce((s, v) => s + v, 0) / values.length;
+  const sd = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length);
+  return (v) => (sd > 0 ? (v - mean) / sd : 0);
 }
 
-// 정렬용 순위 점수: 판수를 반영한 보정 승률 (1판 100%가 10판 60%보다 위로 가지 않게)
-function getRankScore(champ: ChampionStats): number {
-  const smoothedWR = ((champ.wins + 2.5) / (champ.totalGames + 5)) * 100;
-  const kdaScore = (Math.min(champ.avgKda, 8) / 8) * 100;
-  return smoothedWR * 0.6 + kdaScore * 0.4;
-}
+function computePsTiers(champs: ChampionStats[]): Map<string, PsEntry> {
+  const pool = champs.filter((c) => c.totalGames >= 2);
+  const result = new Map<string, PsEntry>();
+  if (pool.length === 0) return result;
 
-function getChampTier(champ: ChampionStats): TierDef {
-  if (champ.totalGames === 1) return TIERS[2]; // 데이터 부족 → B
-  const score = getTierScore(champ);
-  for (const t of TIERS) {
-    if (score >= t.min && score < t.max) return t;
-  }
-  return TIERS[4];
+  const smoothedWr = (c: ChampionStats) => ((c.wins + 2.5) / (c.totalGames + 5)) * 100;
+  const zWr = zScorer(pool.map(smoothedWr));
+  const zPick = zScorer(pool.map((c) => c.totalGames)); // 풀 내 상대 픽률 (z라 스케일 무관)
+  const zBan = zScorer(pool.map((c) => c.banCount));
+
+  const scores = pool.map(
+    (c) => 50 + 3 * zWr(smoothedWr(c)) + 2 * zPick(c.totalGames) + 0.5 * zBan(c.banCount)
+  );
+  const zTier = zScorer(scores);
+
+  pool.forEach((c, i) => {
+    const z = zTier(scores[i]);
+    const tier = z >= 1.25 ? "1" : z >= 0.5 ? "2" : z >= 0 ? "3" : z >= -1.25 ? "4" : "5";
+    result.set(c.champion, { score: scores[i], tier, isOp: z >= 1.75 });
+  });
+  return result;
 }
 
 export function ChampionStatsTab({ group }: { group: Group }) {
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<ViewMode>("table");
   const [lane, setLane] = useState<LaneFilter>("all");
   const [selected, setSelected] = useState<ChampionStats | null>(null);
 
@@ -73,19 +79,28 @@ export function ChampionStatsTab({ group }: { group: Group }) {
     [group, lane]
   );
 
-  const filtered = useMemo(() => {
-    if (!search) return championStats;
-    return championStats.filter((c) => c.champion.toLowerCase().includes(search.toLowerCase()));
-  }, [championStats, search]);
+  // 1판만 플레이된 챔피언은 표본 부족으로 테이블에서 제외 (밴 전용 챔피언은 유지)
+  const visible = useMemo(
+    () => championStats.filter((c) => c.totalGames !== 1),
+    [championStats]
+  );
 
-  const tierGroups = useMemo(() => {
-    return TIERS.map((tier) => ({
-      ...tier,
-      champions: filtered
-        .filter((c) => c.totalGames > 0 && getChampTier(c).tier === tier.tier)
-        .sort((a, b) => getRankScore(b) - getRankScore(a)),
-    }));
-  }, [filtered]);
+  const psTiers = useMemo(() => computePsTiers(visible), [visible]);
+
+  const filtered = useMemo(() => {
+    if (!search) return visible;
+    return visible.filter((c) => c.champion.toLowerCase().includes(search.toLowerCase()));
+  }, [visible, search]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      // 픽 기록 있는 챔피언 먼저 → PS점수 순, 밴 전용은 밴 수 순
+      const pickDiff = (a.totalGames > 0 ? 0 : 1) - (b.totalGames > 0 ? 0 : 1);
+      if (pickDiff !== 0) return pickDiff;
+      if (a.totalGames === 0) return b.banCount - a.banCount;
+      return (psTiers.get(b.champion)?.score ?? 0) - (psTiers.get(a.champion)?.score ?? 0);
+    });
+  }, [filtered, psTiers]);
 
   return (
     <div className="space-y-4">
@@ -114,177 +129,109 @@ export function ChampionStatsTab({ group }: { group: Group }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="flex items-center gap-1 bg-surface-1 border border-hairline rounded-lg p-0.5">
-          <button
-            onClick={() => setView("tierlist")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-fast cursor-pointer ${
-              view === "tierlist" ? "bg-surface-3 text-ink" : "text-ink-subtle hover:text-ink"
-            }`}
-          >
-            티어리스트
-          </button>
-          <button
-            onClick={() => setView("table")}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-fast cursor-pointer ${
-              view === "table" ? "bg-surface-3 text-ink" : "text-ink-subtle hover:text-ink"
-            }`}
-          >
-            테이블
-          </button>
-        </div>
       </div>
 
-      {view === "tierlist" ? (
-        /* ─── Tier List View ─── */
-        <div className="space-y-1">
-          {tierGroups.map((group) => (
-            <div
-              key={group.tier}
-              className={`flex border ${group.border} rounded-lg overflow-hidden min-h-[60px]`}
-            >
-              {/* Tier Label */}
-              <div className={`${group.bg} flex items-center justify-center w-14 sm:w-20 shrink-0 border-r ${group.border}`}>
-                <span className={`text-2xl sm:text-3xl font-bold ${group.color}`}>
-                  {group.tier}
-                </span>
-              </div>
-
-              {/* Champions */}
-              <div className="flex-1 flex flex-wrap items-center gap-2 p-3">
-                {group.champions.length === 0 ? (
-                  <span className="text-xs text-ink-tertiary">해당 챔피언 없음</span>
-                ) : (
-                  group.champions.map((champ) => (
-                    <button
-                      key={champ.champion}
-                      onClick={() => setSelected(champ)}
-                      className="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-surface-1 hover:bg-surface-2 border border-hairline hover:border-hairline-strong transition-fast cursor-pointer min-w-[160px]"
-                    >
-                      <ChampionIcon name={champ.champion} size={40} className="rounded-lg" />
-                      <div className="text-left flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-ink truncate">{champ.champion}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`text-xs font-bold ${champ.winRate >= 55 ? "text-win" : champ.winRate < 45 ? "text-lose" : "text-ink-muted"}`}>
-                            {champ.winRate.toFixed(0)}%
-                          </span>
-                          <span className={`text-xs ${champ.avgKda >= 3.5 ? "text-win/80" : champ.avgKda < 2 ? "text-lose/60" : "text-ink-subtle"}`}>
-                            {champ.avgKda.toFixed(1)} KDA
-                          </span>
-                          <span className="text-[11px] text-ink-tertiary">{champ.totalGames}판</span>
-                        </div>
+      <StatTable>
+            <thead className={stickyHead}>
+              <tr className="text-ink-subtle text-xs border-b border-hairline">
+                <th className="text-center py-2.5 px-3 w-12">티어</th>
+                <th className="text-left py-2.5 px-3">챔피언</th>
+                <th className="text-center py-2.5 px-2" title="PS 방식: 50 + 3×z(보정승률) + 2×z(픽률) + 0.5×z(밴률)">PS점수</th>
+                <th className="text-center py-2.5 px-2">판수</th>
+                <th className="text-center py-2.5 px-2">승률</th>
+                <th className="text-center py-2.5 px-2">KDA</th>
+                <th className="text-center py-2.5 px-2">K/D/A</th>
+                <th className="text-center py-2.5 px-2">CS</th>
+                <th className="text-center py-2.5 px-2">밴</th>
+                <th className="text-left py-2.5 px-2">플레이어</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((champ) => {
+                const ps = psTiers.get(champ.champion);
+                const banOnly = champ.totalGames === 0;
+                return (
+                  <tr
+                    key={champ.champion}
+                    className="border-b border-hairline/50 hover:bg-surface-1 transition-fast cursor-pointer"
+                    onClick={() => setSelected(champ)}
+                  >
+                    <td className="text-center py-2.5 px-3">
+                      {banOnly || !ps ? (
+                        <span className="text-xs text-ink-tertiary">-</span>
+                      ) : ps.isOp ? (
+                        <span className="text-sm font-bold text-violet-400">OP</span>
+                      ) : (
+                        <span className={`text-sm font-bold ${TIER_STYLE[ps.tier]}`}>{ps.tier}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-2">
+                        <ChampionIcon name={champ.champion} size={28} />
+                        <span className="font-medium text-ink">{champ.champion}</span>
                       </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* ─── Table View ─── */
-        <StatTable>
-              <thead className={stickyHead}>
-                <tr className="text-ink-subtle text-xs border-b border-hairline">
-                  <th className="text-center py-2.5 px-3 w-12">티어</th>
-                  <th className="text-left py-2.5 px-3">챔피언</th>
-                  <th className="text-center py-2.5 px-2">판수</th>
-                  <th className="text-center py-2.5 px-2">승률</th>
-                  <th className="text-center py-2.5 px-2">KDA</th>
-                  <th className="text-center py-2.5 px-2">K/D/A</th>
-                  <th className="text-center py-2.5 px-2">CS</th>
-                  <th className="text-center py-2.5 px-2">밴</th>
-                  <th className="text-left py-2.5 px-2">플레이어</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...filtered]
-                  .sort((a, b) => {
-                    // 픽 기록 있는 챔피언 먼저 → 티어 높은순 → 같은 티어 안에서는 판수 보정 승률순
-                    const pickDiff = (a.totalGames > 0 ? 0 : 1) - (b.totalGames > 0 ? 0 : 1);
-                    if (pickDiff !== 0) return pickDiff;
-                    if (a.totalGames === 0) return b.banCount - a.banCount;
-                    const tierDiff =
-                      TIERS.findIndex((t) => t.tier === getChampTier(a).tier) -
-                      TIERS.findIndex((t) => t.tier === getChampTier(b).tier);
-                    return tierDiff !== 0 ? tierDiff : getRankScore(b) - getRankScore(a);
-                  })
-                  .map((champ) => {
-                    const tier = getChampTier(champ);
-                    const banOnly = champ.totalGames === 0;
-                    return (
-                      <tr
-                        key={champ.champion}
-                        className="border-b border-hairline/50 hover:bg-surface-1 transition-fast cursor-pointer"
-                        onClick={() => setSelected(champ)}
-                      >
-                        <td className="text-center py-2.5 px-3">
-                          {banOnly ? (
-                            <span className="text-xs text-ink-tertiary">-</span>
-                          ) : (
-                            <span className={`text-sm font-bold ${tier.color}`}>{tier.tier}</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <ChampionIcon name={champ.champion} size={28} />
-                            <span className="font-medium text-ink">{champ.champion}</span>
-                          </div>
-                        </td>
-                        <td className="text-center py-2.5 px-2 text-ink-muted">
-                          {banOnly ? "-" : champ.totalGames}
-                        </td>
-                        <td className="text-center py-2.5 px-2">
-                          {banOnly ? (
-                            <span className="text-ink-tertiary">-</span>
-                          ) : (
-                            <span className={`font-semibold ${champ.winRate >= 55 ? "text-win" : champ.winRate < 45 ? "text-lose" : "text-ink"}`}>
-                              {champ.winRate.toFixed(0)}%
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-center py-2.5 px-2">
-                          {banOnly ? (
-                            <span className="text-ink-tertiary">-</span>
-                          ) : (
-                            <span className={champ.avgKda >= 3.5 ? "text-win" : champ.avgKda < 2 ? "text-lose" : "text-ink"}>
-                              {champ.avgKda.toFixed(2)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-center py-2.5 px-2 text-ink-muted text-xs font-mono">
-                          {banOnly ? "-" : `${champ.avgKills.toFixed(1)}/${champ.avgDeaths.toFixed(1)}/${champ.avgAssists.toFixed(1)}`}
-                        </td>
-                        <td className="text-center py-2.5 px-2 text-ink-muted">
-                          {banOnly ? "-" : Math.round(champ.avgCs)}
-                        </td>
-                        <td className="text-center py-2.5 px-2">
-                          {champ.banCount > 0 ? (
-                            <span className="text-xs">
-                              <span className="text-lose font-semibold">{champ.banCount}회</span>
-                              <span className="text-ink-tertiary ml-1">({champ.banRate.toFixed(0)}%)</span>
-                            </span>
-                          ) : (
-                            <span className="text-ink-tertiary text-xs">-</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <div className="flex items-center gap-1">
-                            {champ.players.slice(0, 3).map((p) => (
-                              <span key={p.nickname} className="text-xs text-ink-subtle px-1.5 py-0.5 rounded bg-surface-2">
-                                {p.nickname}
-                              </span>
-                            ))}
-                            {champ.players.length > 3 && (
-                              <span className="text-[10px] text-ink-tertiary">+{champ.players.length - 3}</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-        </StatTable>
-      )}
+                    </td>
+                    <td className="text-center py-2.5 px-2">
+                      {banOnly || !ps ? (
+                        <span className="text-ink-tertiary">-</span>
+                      ) : (
+                        <span className="font-bold text-primary">{ps.score.toFixed(1)}</span>
+                      )}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-ink-muted">
+                      {banOnly ? "-" : champ.totalGames}
+                    </td>
+                    <td className="text-center py-2.5 px-2">
+                      {banOnly ? (
+                        <span className="text-ink-tertiary">-</span>
+                      ) : (
+                        <span className={`font-semibold ${champ.winRate >= 55 ? "text-win" : champ.winRate < 45 ? "text-lose" : "text-ink"}`}>
+                          {champ.winRate.toFixed(0)}%
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-center py-2.5 px-2">
+                      {banOnly ? (
+                        <span className="text-ink-tertiary">-</span>
+                      ) : (
+                        <span className={champ.avgKda >= 3.5 ? "text-win" : champ.avgKda < 2 ? "text-lose" : "text-ink"}>
+                          {champ.avgKda.toFixed(2)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-ink-muted text-xs font-mono">
+                      {banOnly ? "-" : `${champ.avgKills.toFixed(1)}/${champ.avgDeaths.toFixed(1)}/${champ.avgAssists.toFixed(1)}`}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-ink-muted">
+                      {banOnly ? "-" : Math.round(champ.avgCs)}
+                    </td>
+                    <td className="text-center py-2.5 px-2">
+                      {champ.banCount > 0 ? (
+                        <span className="text-xs">
+                          <span className="text-lose font-semibold">{champ.banCount}회</span>
+                          <span className="text-ink-tertiary ml-1">({champ.banRate.toFixed(0)}%)</span>
+                        </span>
+                      ) : (
+                        <span className="text-ink-tertiary text-xs">-</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2">
+                      <div className="flex items-center gap-1">
+                        {champ.players.slice(0, 3).map((p) => (
+                          <span key={p.nickname} className="text-xs text-ink-subtle px-1.5 py-0.5 rounded bg-surface-2">
+                            {p.nickname}
+                          </span>
+                        ))}
+                        {champ.players.length > 3 && (
+                          <span className="text-[10px] text-ink-tertiary">+{champ.players.length - 3}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+      </StatTable>
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-ink-subtle">
@@ -299,38 +246,42 @@ export function ChampionStatsTab({ group }: { group: Group }) {
       {/* Tier Criteria */}
       <div className="border border-hairline rounded-lg overflow-hidden">
         <div className="bg-canvas px-4 py-2.5 border-b border-hairline">
-          <span className="text-xs font-semibold text-ink-muted">티어 선정 기준</span>
+          <span className="text-xs font-semibold text-ink-muted">티어 산정 기준 (PS 방식)</span>
         </div>
         <div className="px-4 py-3 space-y-2.5 text-xs text-ink-subtle">
           <p className="text-ink-muted">
-            티어 점수 = <span className="text-ink font-mono">승률 × 60%</span> + <span className="text-ink font-mono">KDA 점수 × 40%</span>
-            <span className="text-ink-tertiary"> (KDA는 8.0 이상 cap)</span>
+            PS점수 = <span className="text-ink font-mono">50 + 3×z(보정승률) + 2×z(픽률) + 0.5×z(밴률)</span>
+            <span className="text-ink-tertiary"> — 현재 라인 풀 내 표준점수(z) 기준, 승률은 판수 보정</span>
           </p>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-red-400 font-bold text-sm">S</span>
-              <span>75점 이상</span>
+              <span className="text-violet-400 font-bold text-sm">OP</span>
+              <span>+1.75σ 이상</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-orange-400 font-bold text-sm">A</span>
-              <span>60 ~ 75</span>
+              <span className="text-red-400 font-bold text-sm">1</span>
+              <span>+1.25σ 이상</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-yellow-400 font-bold text-sm">B</span>
-              <span>45 ~ 60</span>
+              <span className="text-orange-400 font-bold text-sm">2</span>
+              <span>+0.5σ 이상</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-blue-400 font-bold text-sm">C</span>
-              <span>30 ~ 45</span>
+              <span className="text-yellow-400 font-bold text-sm">3</span>
+              <span>평균 이상</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-ink-subtle font-bold text-sm">D</span>
-              <span>30 미만</span>
+              <span className="text-blue-400 font-bold text-sm">4</span>
+              <span>-1.25σ 이상</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-ink-subtle font-bold text-sm">5</span>
+              <span>-1.25σ 미만</span>
             </div>
           </div>
           <p className="text-ink-tertiary">
-            1판만 플레이한 챔피언은 데이터 부족으로 B 티어에 배치됩니다.
-            테이블 정렬은 판수를 반영한 보정 승률 기준이라 판수가 적은 챔피언은 아래로 밀립니다.
+            lol.ps의 챔피언 티어 산정 방식(승률·픽률·밴률의 라인 내 표준점수 가중합)을 그대로 적용했습니다.
+            1판만 플레이된 챔피언은 표본 부족으로 테이블에서 제외되며, 밴만 당한 챔피언은 하단에 표시됩니다.
           </p>
         </div>
       </div>
@@ -342,15 +293,13 @@ export function ChampionStatsTab({ group }: { group: Group }) {
         title={selected?.champion}
         className="max-w-md"
       >
-        {selected && <ChampionDetail champ={selected} />}
+        {selected && <ChampionDetail champ={selected} ps={psTiers.get(selected.champion)} />}
       </Modal>
     </div>
   );
 }
 
-function ChampionDetail({ champ }: { champ: ChampionStats }) {
-  const tier = getChampTier(champ);
-
+function ChampionDetail({ champ, ps }: { champ: ChampionStats; ps?: PsEntry }) {
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -359,7 +308,14 @@ function ChampionDetail({ champ }: { champ: ChampionStats }) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold text-ink">{champ.champion}</span>
-            {champ.totalGames > 0 && <span className={`text-sm font-bold ${tier.color}`}>{tier.tier} 티어</span>}
+            {ps && (
+              ps.isOp ? (
+                <span className="text-sm font-bold text-violet-400">OP</span>
+              ) : (
+                <span className={`text-sm font-bold ${TIER_STYLE[ps.tier]}`}>{ps.tier}티어</span>
+              )
+            )}
+            {ps && <span className="text-xs text-ink-subtle">PS점수 {ps.score.toFixed(1)}</span>}
           </div>
           <div className="text-sm text-ink-subtle">
             {champ.totalGames > 0
