@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatTable, stickyHead } from "@/components/ui/stat-table";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Crown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crown } from "lucide-react";
 import { rankMomentum, type PlayerStats, type Award } from "@/lib/stats";
 
 type SortKey =
@@ -14,6 +14,9 @@ type SortKey =
 const MULTIKILL_LABEL: Record<number, string> = {
   2: "더블킬", 3: "트리플킬", 4: "쿼드라킬", 5: "펜타킬",
 };
+
+// 리더보드 최소 경기 수 — 20판 이하는 표에서 제외
+const LEADERBOARD_MIN_GAMES = 21;
 
 // 정렬 가능한 헤더 셀 (렌더마다 재생성되지 않도록 컴포넌트 밖에 정의)
 function SortTh({
@@ -60,41 +63,24 @@ export function PlayerStatsTab({
     }
   };
 
-  const sorted = [...playerStats].sort((a, b) => {
+  const eligible = playerStats.filter((p) => p.gamesPlayed >= LEADERBOARD_MIN_GAMES);
+  const sorted = [...eligible].sort((a, b) => {
     const diff = (a[sortBy] as number) - (b[sortBy] as number);
     return sortAsc ? diff : -diff;
   });
 
   // 상승세/하락세: 최근 폼 추세(momentum) 상위 3명씩만 표기
-  const { rising, falling } = rankMomentum(playerStats, 3);
+  const { rising, falling } = rankMomentum(eligible, 3);
 
   const thProps = { sortBy, sortAsc, onSort: handleSort };
 
   return (
     <div className="space-y-6">
-      {/* Awards — 3-row grid */}
-      {awards.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs text-ink-tertiary">🏅 어워즈 · 최근 20경기 기준 (경기가 쌓일수록 갱신)</div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {awards.map((award) => (
-            <div
-              key={award.title}
-              className="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-surface-1 border border-hairline"
-            >
-              <span className="text-2xl shrink-0">{award.emoji}</span>
-              <div className="min-w-0">
-                <div className="text-xs text-ink-subtle">{award.title}</div>
-                <div className="text-sm font-semibold text-ink truncate">{award.player}</div>
-                <div className="text-xs text-ink-muted">{award.value}</div>
-              </div>
-            </div>
-          ))}
-          </div>
-        </div>
-      )}
+      {/* Awards — single-card carousel */}
+      {awards.length > 0 && <AwardsCarousel awards={awards} />}
 
       {/* Leaderboard */}
+      <div className="text-xs text-ink-tertiary">📋 리더보드 · {LEADERBOARD_MIN_GAMES}판 이상만 표시 (20판 이하 제외)</div>
       <StatTable>
             <thead className={stickyHead}>
               <tr className="text-ink-subtle text-xs border-b border-hairline">
@@ -194,6 +180,83 @@ export function PlayerStatsTab({
       >
         {selectedPlayer && <PlayerDetail player={selectedPlayer} />}
       </Modal>
+    </div>
+  );
+}
+
+function AwardsCarousel({ awards }: { awards: Award[] }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused || awards.length <= 1) return;
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1) % awards.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [paused, awards.length]);
+
+  const go = (delta: number) =>
+    setIndex((i) => (i + delta + awards.length) % awards.length);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-ink-tertiary">🏅 어워즈 · 최근 20경기 기준 (경기가 쌓일수록 갱신)</div>
+      <div
+        className="relative rounded-lg bg-surface-1 border border-hairline overflow-hidden"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        <div
+          className="flex transition-transform duration-500 ease-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {awards.map((award) => (
+            <div
+              key={award.title}
+              className="w-full shrink-0 flex items-center justify-center gap-4 px-12 pt-4 pb-6"
+            >
+              <span className="text-3xl shrink-0">{award.emoji}</span>
+              <div className="min-w-0">
+                <div className="text-xs text-ink-subtle">{award.title}</div>
+                <div className="text-base font-semibold text-ink truncate">{award.player}</div>
+                <div className="text-xs text-ink-muted">{award.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {awards.length > 1 && (
+          <>
+            <button
+              onClick={() => go(-1)}
+              aria-label="이전 어워즈"
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-ink-subtle hover:text-ink hover:bg-surface-2 transition-fast cursor-pointer"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => go(1)}
+              aria-label="다음 어워즈"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-ink-subtle hover:text-ink hover:bg-surface-2 transition-fast cursor-pointer"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {awards.map((award, i) => (
+                <button
+                  key={award.title}
+                  onClick={() => setIndex(i)}
+                  aria-label={award.title}
+                  className={`w-1.5 h-1.5 rounded-full transition-fast cursor-pointer ${
+                    i === index ? "bg-primary" : "bg-ink-subtle/30 hover:bg-ink-subtle/60"
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
