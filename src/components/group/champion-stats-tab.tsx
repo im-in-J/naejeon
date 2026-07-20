@@ -19,9 +19,8 @@ const LANE_TABS: { key: LaneFilter; label: string }[] = [
   { key: "support", label: "💚 서폿" },
 ];
 
-// ─── PS(lol.ps) 방식 티어 산정 (픽률 가중 강화 커스텀) ───
-// PS점수 = 50 + 2×z(보정승률) + 3×z(픽률) + 0.5×z(밴률)
-//   - 판수가 많다 = 선호도가 높다 = 티어가 높다는 판단으로 픽률에 더 큰 가중치
+// ─── PS(lol.ps) 방식 티어 산정 (승률·픽률 동일 가중 커스텀) ───
+// PS점수 = 50 + 2.5×z(보정승률) + 2.5×z(픽률) + 0.5×z(밴률)
 //   - z는 현재 라인 풀(2판 이상 챔피언) 내 표준화 값
 //   - 승률은 판수 보정(스무딩): (승 + 2.5) / (판수 + 5)
 // 티어 컷(PS점수 분포 기준): OP ≥ +1.75σ, 1티어 ≥ +1.25σ, 2티어 ≥ +0.5σ,
@@ -58,7 +57,7 @@ function computePsTiers(champs: ChampionStats[]): Map<string, PsEntry> {
   const zBan = zScorer(pool.map((c) => c.banCount));
 
   const scores = pool.map(
-    (c) => 50 + 2 * zWr(smoothedWr(c)) + 3 * zPick(c.totalGames) + 0.5 * zBan(c.banCount)
+    (c) => 50 + 2.5 * zWr(smoothedWr(c)) + 2.5 * zPick(c.totalGames) + 0.5 * zBan(c.banCount)
   );
   const zTier = zScorer(scores);
 
@@ -137,7 +136,7 @@ export function ChampionStatsTab({ group }: { group: Group }) {
               <tr className="text-ink-subtle text-xs border-b border-hairline">
                 <th className="text-center py-2.5 px-3 w-12">티어</th>
                 <th className="text-left py-2.5 px-3">챔피언</th>
-                <th className="text-center py-2.5 px-2" title="PS 방식: 50 + 2×z(보정승률) + 3×z(픽률) + 0.5×z(밴률)">PS점수</th>
+                <th className="text-center py-2.5 px-2" title="PS 방식: 50 + 2.5×z(보정승률) + 2.5×z(픽률) + 0.5×z(밴률)">PS점수</th>
                 <th className="text-center py-2.5 px-2">판수</th>
                 <th className="text-center py-2.5 px-2">승률</th>
                 <th className="text-center py-2.5 px-2">KDA</th>
@@ -251,7 +250,7 @@ export function ChampionStatsTab({ group }: { group: Group }) {
         </div>
         <div className="px-4 py-3 space-y-2.5 text-xs text-ink-subtle">
           <p className="text-ink-muted">
-            PS점수 = <span className="text-ink font-mono">50 + 2×z(보정승률) + 3×z(픽률) + 0.5×z(밴률)</span>
+            PS점수 = <span className="text-ink font-mono">50 + 2.5×z(보정승률) + 2.5×z(픽률) + 0.5×z(밴률)</span>
             <span className="text-ink-tertiary"> — 현재 라인 풀 내 표준점수(z) 기준, 승률은 판수 보정</span>
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -282,7 +281,7 @@ export function ChampionStatsTab({ group }: { group: Group }) {
           </div>
           <p className="text-ink-tertiary">
             lol.ps의 챔피언 티어 산정 방식(승률·픽률·밴률의 라인 내 표준점수 가중합)을 기반으로,
-            판수(선호도)가 티어에 더 반영되도록 픽률 가중치를 높였습니다.
+            승률과 픽률(선호도)을 동일 가중치로 반영합니다.
             1판만 플레이된 챔피언은 표본 부족으로 테이블에서 제외되며, 밴만 당한 챔피언은 하단에 표시됩니다.
           </p>
         </div>
