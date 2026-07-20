@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { getGroup, deleteMatch as deleteMatchApi } from "@/lib/store";
-import { buildPlayerStats, buildChampionStats, computeAwards } from "@/lib/stats";
+import { buildPlayerStats, computeAwards } from "@/lib/stats";
 import { Button } from "@/components/ui/button";
 import { PlayerStatsTab } from "@/components/group/player-stats-tab";
 import { ChampionStatsTab } from "@/components/group/champion-stats-tab";
@@ -80,7 +80,6 @@ export default function MainGroupPage() {
   }, [loadData]);
 
   const playerStats = useMemo(() => (group ? buildPlayerStats(group) : []), [group]);
-  const championStats = useMemo(() => (group ? buildChampionStats(group) : []), [group]);
   const awards = useMemo(() => (group ? computeAwards(group) : []), [group]);
 
   const handleDeleteMatch = async (matchId: string) => {
@@ -157,7 +156,7 @@ export default function MainGroupPage() {
 
       {/* Tab Content */}
       {tab === "players" && <PlayerStatsTab playerStats={playerStats} awards={awards} />}
-      {tab === "champions" && <ChampionStatsTab championStats={championStats} />}
+      {tab === "champions" && <ChampionStatsTab group={group} />}
       {tab === "lanes" && <LaneRankingTab group={group} />}
       {tab === "sides" && <TeamSideTab group={group} />}
       {tab === "duos" && <DuoTab group={group} />}

@@ -569,12 +569,14 @@ export interface ChampionStats {
   players: { nickname: string; games: number; wins: number; winRate: number }[];
 }
 
-export function buildChampionStats(group: Group): ChampionStats[] {
+// lane을 넘기면 해당 라인에서 플레이된 기록만 집계 (라인 정보 없는 기록은 제외)
+export function buildChampionStats(group: Group, lane?: Lane): ChampionStats[] {
   const map = new Map<string, PlayerStat[]>();
 
   for (const match of group.matches) {
     for (const p of match.players) {
       if (!p.champion) continue;
+      if (lane && p.lane !== lane) continue;
       const arr = map.get(p.champion) || [];
       arr.push(p);
       map.set(p.champion, arr);
@@ -601,8 +603,8 @@ export function buildChampionStats(group: Group): ChampionStats[] {
     };
   };
 
-  // 밴만 당하고 픽된 적 없는 챔피언도 목록에 포함
-  const banOnly: ChampionStats[] = Array.from(banCountMap.keys())
+  // 밴만 당하고 픽된 적 없는 챔피언도 목록에 포함 (밴은 라인 정보가 없으므로 전체 뷰에서만)
+  const banOnly: ChampionStats[] = (lane ? [] : Array.from(banCountMap.keys()))
     .filter((champ) => !map.has(champ))
     .map((champ) => ({
       champion: champ,

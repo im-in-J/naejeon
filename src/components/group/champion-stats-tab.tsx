@@ -5,9 +5,20 @@ import { StatTable, stickyHead } from "@/components/ui/stat-table";
 import { Modal } from "@/components/ui/modal";
 import { SearchInput } from "@/components/ui/search-input";
 import { ChampionIcon } from "@/components/ui/champion-icon";
-import type { ChampionStats } from "@/lib/stats";
+import { buildChampionStats, type ChampionStats } from "@/lib/stats";
+import type { Group, Lane } from "@/lib/types";
 
 type ViewMode = "tierlist" | "table";
+type LaneFilter = "all" | Lane;
+
+const LANE_TABS: { key: LaneFilter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "top", label: "🛡️ 탑" },
+  { key: "jungle", label: "🌿 정글" },
+  { key: "mid", label: "🔥 미드" },
+  { key: "adc", label: "🏹 원딜" },
+  { key: "support", label: "💚 서폿" },
+];
 
 interface TierDef {
   tier: string;
@@ -51,10 +62,16 @@ function getChampTier(champ: ChampionStats): TierDef {
   return TIERS[4];
 }
 
-export function ChampionStatsTab({ championStats }: { championStats: ChampionStats[] }) {
+export function ChampionStatsTab({ group }: { group: Group }) {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("table");
+  const [lane, setLane] = useState<LaneFilter>("all");
   const [selected, setSelected] = useState<ChampionStats | null>(null);
+
+  const championStats = useMemo(
+    () => buildChampionStats(group, lane === "all" ? undefined : lane),
+    [group, lane]
+  );
 
   const filtered = useMemo(() => {
     if (!search) return championStats;
@@ -72,6 +89,23 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
 
   return (
     <div className="space-y-4">
+      {/* Lane Tabs */}
+      <div className="flex items-center gap-1 overflow-x-auto">
+        {LANE_TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setLane(t.key)}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer whitespace-nowrap transition-fast ${
+              lane === t.key
+                ? "bg-primary/15 text-primary"
+                : "text-ink-subtle hover:text-ink hover:bg-surface-1"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
         <SearchInput
@@ -254,7 +288,11 @@ export function ChampionStatsTab({ championStats }: { championStats: ChampionSta
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-ink-subtle">
-          {search ? "검색 결과가 없습니다" : "아직 기록된 챔피언이 없습니다"}
+          {search
+            ? "검색 결과가 없습니다"
+            : lane !== "all"
+              ? "해당 라인에 기록된 챔피언이 없습니다"
+              : "아직 기록된 챔피언이 없습니다"}
         </div>
       )}
 
